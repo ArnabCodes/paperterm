@@ -7,13 +7,13 @@ async (page) => {
   await page.keyboard.press('s');
   assert(await page.locator('.link-hint').count() >= 2, 'Smart hints identify unlinked equation and citation text');
   await page.keyboard.press('a');
-  await page.getByRole('heading', { name: 'Equation 2', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Equation (2)', exact: true }).waitFor();
   assert(await page.locator('#portal-page').innerText() === 'Page 3', 'Smart hint opens Rust-resolved equation definition');
   await page.keyboard.press('Escape');
   await page.locator('#file-input').setInputFiles('output/playwright/fixtures/tracemonkey.pdf');
-  await page.getByText('14 pages · Your private reading space', { exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '14' && document.querySelector('#loading').hidden);
   await page.waitForFunction(() => document.querySelector('.canvasWrapper canvas')?.width > 100);
-  assert(await page.locator('#page-total').innerText() === '14', 'Real two-column research PDF opens with 14 pages');
+  assert(await page.locator('#page-total').textContent() === '14', 'Real two-column research PDF opens with 14 pages');
   await page.keyboard.press('/');
   await page.getByRole('textbox', { name: 'Find in document', exact: true }).fill('JavaScript');
   await page.waitForFunction(() => /of \d+/.test(document.querySelector('#find-count').textContent));
@@ -23,10 +23,11 @@ async (page) => {
   await page.screenshot({ path: 'output/playwright/rotated-research.png' });
   await page.keyboard.press('R'); await page.keyboard.press('R'); await page.keyboard.press('R');
   await page.keyboard.press(',');
-  await page.getByRole('button', { name: 'Aa Paper', exact: true }).click();
+  await page.getByRole('button', { name: 'Paper', exact: true }).click();
   await page.getByLabel('Page background', { exact: true }).fill('#e9f1e4');
   await page.getByLabel('Page background', { exact: true }).dispatchEvent('change');
   await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('canvas[data-recoloring]'));
   const color = await page.locator('.canvasWrapper canvas').first().evaluate(canvas => Array.from(canvas.getContext('2d').getImageData(0, 0, 1, 1).data));
   assert(color[0] === 233 && color[1] === 241 && color[2] === 228, 'Custom page background changes actual PDF canvas pixels');
   await page.keyboard.press('O');
@@ -38,11 +39,13 @@ async (page) => {
   assert((await page.locator('#toast').innerText()).includes('Could not open'), 'Invalid PDF returns to a usable open-document screen');
   await page.keyboard.press('O');
   await page.getByRole('option').filter({ hasText: 'tracemonkey.pdf' }).click();
-  await page.getByText('14 pages · Your private reading space', { exact: true }).waitFor();
-  assert(await page.locator('#page-total').innerText() === '14', 'Recent library recovers after a malformed PDF');
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '14' && document.querySelector('#loading').hidden);
+  assert(await page.locator('#page-total').textContent() === '14', 'Recent library recovers after a malformed PDF');
   await page.setViewportSize({ width: 600, height: 800 });
   await page.screenshot({ path: 'output/playwright/compact-reader.png' });
-  assert(await page.getByRole('button', { name: 'Commands Ctrl K', exact: true }).isVisible() === false || await page.locator('.command-trigger').isVisible(), 'Command control remains available in compact layout');
+  await page.keyboard.press('F6');
+  assert(await page.getByRole('button', { name: 'All commands (:)', exact: true }).isVisible(), 'Command control remains available in compact layout');
+  await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 960 });
   return { passed: checks.length, checks };
 }

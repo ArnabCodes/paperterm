@@ -1,14 +1,14 @@
-# paperterm.
+# Pipit
 
 A quiet PDF workspace for following ideas without losing your place. A minimal web interface, Sioyek-inspired keyboard navigation and reference previews, and a Rust/WebAssembly lookup engine.
 
-This is a fresh browser-first implementation. It replaces the previous Python terminal prototype; Git history is preserved. The repository remains private.
+Formerly **Paperterm**, now **Pipit**. This browser-first implementation replaces the Python terminal prototype; Git history and existing reader storage keys are preserved. The repository remains private at its existing URL.
 
 ## Start here
 
-**Status:** working local web reader and unpacked Chrome extension, version 0.2.0. Tested on Windows with Chromium; macOS and Linux testing remains open. No public deployment or Chrome Web Store listing exists.
+**Status:** **0.8.0 / Alpha 01** has a shared web reader, tested Chromium and Firefox extensions, a Safari source target, and a browser-aware download website with Pip the bird mascot. Safari installation/runtime validation and macOS/Linux testing remain open. Safari does not automatically intercept PDF responses. No store listing or public deployment exists yet. See [browser support and installation](docs/BROWSERS.md) and [performance evidence](docs/PERFORMANCE.md).
 
-**Next:** build, load the extension, and try your own papers. See [TASKS.md](TASKS.md) for ownership and [validation](docs/VALIDATION.md) for actual test coverage and limits.
+**Next:** try the Alpha 01 packages and the download page. See the [alpha dashboard](docs/ALPHA.md) for website build/deployment, [TASKS.md](TASKS.md) for ownership, and [validation](docs/VALIDATION.md) for actual test coverage and limits. Cloudflare publication requires a renewed login; local website preview uses port 4181.
 
 ### Build and run
 
@@ -28,24 +28,35 @@ The build bundles the renderer, PDF worker, fonts, character maps, image decoder
 
 ### Make it Chrome's PDF viewer
 
-1. Build the app, or extract `artifacts/paperterm-0.2.0-chrome.zip` into a permanent folder.
+1. Build the app, or extract `artifacts/pipit-0.8.0-chrome.zip` into a permanent folder.
 2. Open `chrome://extensions` and enable **Developer mode**.
 3. Select **Load unpacked**, then select `dist/` (or the extracted ZIP folder containing `manifest.json`).
 4. Open the extension's **Details** and enable **Allow access to file URLs** for local PDFs. Allow site access on the sites whose PDFs you want to open.
-5. Open an ordinary PDF URL in a new tab. Paperterm replaces Chrome's built-in viewer for eligible top-level PDF navigations.
+5. Open an ordinary PDF URL in a new tab. Pipit replaces Chrome's built-in viewer for eligible top-level PDF navigations.
 
-Generate the distributable with `npm run package` after building. It includes a SHA-256 companion file. Reload the extension after rebuilding. Disable the extension to restore Chrome's built-in viewer. This does not change the operating system's default application.
+Generate the distributable with `npm run package` after building. It includes a SHA-256 companion file. **After an update, click Reload on the Pipit card in `chrome://extensions`, then reopen your PDF tabs.** Refreshing an existing PDF tab alone does not update the background redirect rules. Disable the extension to restore Chrome's built-in viewer. This does not change the operating system's default application.
 
-Chrome 128+ is the declared extension minimum because response-header redirect rules require it; the tested version is listed in the validation report. Use current Chrome. Embedded PDF frames, attachment downloads, POST responses, browser-internal viewers, and blob URLs are deliberately not intercepted. Sites with expiring URLs or unusual authentication may require downloading and opening the file locally. Disable other PDF-viewer extensions if their redirects conflict.
+Chrome 128+ is the declared extension minimum because response-header redirect rules require it; the tested version is listed in the validation report. Use current Chrome. Top-level GET responses served as `application/pdf` open directly, **including attachment-style PDF links**. Opening a remote PDF does not save a file to Downloads or add it to the recent-document library. Like any viewer, the browser must fetch the PDF bytes and may use its normal network cache. Use the Download button to explicitly save a copy; `paperterm-download=1` in a URL also bypasses interception.
+
+Embedded PDF frames, POST responses, browser-internal viewers, blob URLs, and files served with a non-PDF MIME type are not intercepted. Sites with expiring URLs or unusual authentication may require downloading and opening the file locally. Disable other PDF-viewer extensions if their redirects conflict.
 
 ## Reading tools
 
 - Continuous PDF rendering, selectable text, search highlights, outline navigation, rotation, fit modes, and two-page layout.
-- Split-view previews for equations, bibliography entries, figures, and internal links. Enter peeks; Shift+Enter jumps. Escape returns to the main reading view.
+- Larger centered quick looks match the app's aspect ratio, dim the paper below, and use a borderless rounded viewport with a subtle shadow. Initial zoom is capped at 95% of the main PDF zoom and fit to show the entire line width. The header contains only title, page, pin, and close. Enter follows the passage, Shift+P pins it beside the paper, and Alt+Up/Down cycles results. Escape closes the preview. Other preview actions, including citation mentions, are in `:`.
+- Pinned previews resize by dragging their left edge, or by focusing the separator and using Left/Right arrows (Home/End for limits). Width is saved locally; returning to a floating preview restores the centered proportions. The main reading area retains at least 280px on desktop.
+- Right-click an internal link or an unlinked equation/citation/figure number to preview it; middle-click to jump. Select a reference and press `Alt+Enter` to peek or `Alt+Shift+Enter` to jump. Every jump keeps a return point in reading history.
+- Local citation graph: bibliography entries connected to their citing pages, searchable authors/titles, original-page previews, and passage backlinks. The graph maps numeric square-bracket markers in the current PDF; it does not fetch a network of related papers. Unmatched markers may be missing references or non-citation numbers in code/math. Author–year citations, superscripts, and scans are not mapped.
+- A local research notebook: select a passage and press `q` to save its quote and page, add your own notes, jump back later, and export Markdown. `Shift+q` opens the notebook; text-only notes are also supported. Quotes and notes are separate from the original PDF.
+- Searchable document contents, next/previous section and equation navigation, plus explicit Google Scholar searches and DOI/arXiv links from detected references. These external actions open a new tab only when selected.
 - Keyboard hints over embedded links, plus heuristic hints over visible equation numbers and numeric citations even when the PDF has no links.
 - Reading history, page bookmarks, named marks, a movable reading ruler, focus mode, and a searchable command palette.
-- Paper, Sepia, and Night themes; custom foreground/background colors; up to 12 source-color replacements. Recoloring is a luminance mapping and changes images as well as text. Disable it when original scientific colors matter. Replacement colors take priority over recoloring.
+- Paper, Sepia, and Night plus 20 terminal-inspired light/dark themes, with brightness filters and command-menu selection. See [theme names and sources](docs/THEMES.md). Opaque inks map to nearby palette colors; antialiased edge pixels retain their coverage and blend continuously against the chosen paper color. PDF canvases use grayscale antialiasing so subpixel fringes are not mistaken for colored ink. Terminal themes use full ANSI snapshots; the original three presets use their own three swatches. Custom foreground/background colors and up to 12 source replacements remain available and take priority, including smooth text edges. This changes images too; disable recoloring when original scientific colors matter.
 - Local recent-document library and saved reading positions. Password prompt and invalid-file recovery.
+- Frosted panels with blur, saturation, and translucent theme-aware surfaces. Turn off **Frosted panels** for solid dialogs/sidebar; the dock retains its 24%-opacity background and backdrop blur at rest and expanded. A continuous spring controls expansion and contraction, retaining velocity when interrupted; nearby icons gently magnify under the pointer. Reduced-motion mode exposes tools immediately, and reduced-transparency preferences take priority. Interface text uses locally bundled Inter Variable. PDF typography itself is unchanged.
+- Press `g o` to open a direct PDF URL without saving it first. The standalone web app needs a CORS-enabled source; the extension can fetch permitted hosts.
+- Full-window reading with a compact glass dock always in reach: contents, page, search, and commands. Hover over it to expand more tools with an eased animation; move away to return to the compact form. The transparent left panel appears at the screen edge. Neither floating surface shrinks the PDF. Selection uses soft fills rather than borders. Icons use a consistent, locally bundled Lucide set.
+- Keyboard access does not depend on hovering: `F6` expands and focuses the dock, `t` opens/pins the contents panel, and `Escape` collapses controls. On touch screens, tap the dock or bottom edge for more tools. Scrollbars appear during mouse/trackpad wheel scrolling, then disappear; keyboard scrolling keeps them hidden. Ctrl+wheel zooms the PDF around the pointer while keeping the interface size fixed; over a preview it zooms that preview independently.
 
 ### Keyboard map
 
@@ -54,34 +65,66 @@ Unmodified letters are lowercase. A capital letter below explicitly means Shift 
 | Keys | Action |
 | --- | --- |
 | `o` / `Shift+o` | Open PDF / recent library |
+| `g o` | Open PDF from URL |
 | `j` `k` / arrows | Scroll down / up |
 | `h` `l` | Scroll horizontally |
 | `Space` / `Shift+Space` | Move a viewport |
-| `Ctrl+d` / `Ctrl+u` | Move half a viewport |
-| `gg` / `Shift+g` / `:` | First / last / numbered page |
-| `+` `-` / `w` / `a` | Zoom / fit width / fit page |
+| `d` / `u` | Move half a viewport |
+| `gg` / `Shift+g` / `p` | First / last / numbered page |
+| `+` `-` / `w` / `a` / `Shift+w` | Zoom / fit width / fit page / smart text width |
+| `Ctrl+wheel` | Zoom PDF under the pointer; over a preview, zoom only the preview |
+| `Ctrl+PageDown` / `Ctrl+PageUp` | Browser tab navigation (not intercepted) |
 | `Shift+r` | Rotate clockwise |
 | `/` or `Ctrl+f` | Search document text |
 | `n` / `Shift+n` | Next / previous text match |
 | `e` / `c` / `v` | Equation / citation / figure or table lookup |
 | `Enter` / `Shift+Enter` in lookup | Preview / jump to result |
+| `Alt+Enter` / `Alt+Shift+Enter` with selected reference | Preview / jump to its definition |
+| `Enter` / `Shift+p` in preview | Jump to passage / pin or unpin beside paper |
+| `Alt+Up` / `Alt+Down` | Previous / next preview result |
+| `g c` / `g t` | Citation graph / searchable contents |
+| `g e` / `g Shift+e` | Next / previous equation definition |
+| `g s` / `g Shift+s` | Next / previous section |
+| `q` / `Shift+q` | Capture selected passage / open notebook |
 | `f` / `Shift+f` | Follow / preview an embedded link by hint |
 | `s` | Hint visible equation and citation references |
 | `Alt+Left` / `Alt+Right` | Back / forward in reading history |
 | `b` / `Shift+b` | Toggle bookmark / show bookmarks |
 | `m` then a letter | Set a named mark |
 | `'` then a letter | Return to that mark |
-| `t` / `z` | Toggle outline / focus mode |
+| `t` / `z` | Toggle/pin outline / focus mode |
+| `F6` | Expand dock and focus its controls |
 | `r` / `[` `]` | Toggle / move reading ruler |
-| `d` / `,` | Cycle theme / reading settings |
-| `Ctrl+k` (macOS: `Cmd+k`) | Command palette, including two-page layout |
-| `?` / `Escape` | Keyboard guide / dismiss active surface |
+| `g d` / `,` | Cycle theme / reading settings |
+| `g 2` | Toggle single-page / two-page spread |
+| `g l` / `g r` | Toggle frosted panels / document recoloring |
+| `g b` / `g f` / `g p` | Edit background / foreground / palette replacements |
+| `g 0` / `g v` | Reset appearance / enable Vimium compatibility |
+| `g D` / `g h` | Download original PDF / open field guide |
+| `g C` | Clear cached PDFs after confirmation; original files and notes remain |
+| `g B` / `g /` | Preview citation mentions / search selected text in Scholar |
+| `Ctrl/Cmd+Enter` / `Ctrl/Cmd+S` inside notebook | Add text note / export Markdown |
+| `:` / `Ctrl+k` (macOS: `Cmd+k`) | All commands: reading tools, settings, themes, and two-page layout |
+| `:` then a number, `Enter` | Jump directly to that page |
+| `?` or `F1` / `Escape` | Keyboard guide / dismiss active surface |
 
 ## Privacy and boundaries
+
+### Keyboard ownership and Vimium
+
+Open the searchable keyboard map with `F1` or `?`. Its 75 entries are organized into eight sections: navigation, layout, references, previews, research, appearance, files, and browser/workspace controls. Wide screens use four columns; smaller screens use three, two, or one with an internally scrollable list. The lightly frosted surface respects solid-panel and reduced-transparency settings. Keys separated by spaces are sequential; uppercase letters mean Shift. Command-menu labels and leader dispatch share `src/shortcuts.ts` so new bindings stay synchronized.
+
+Reader mode supplies the PDF bindings above. Settings → **Vimium compatibility** (also available through `:`) leaves plain keys to Vimium on the web app: scrolling, `t`/`T`, `f`/`F`, `r`, `x`/`X`, and navigation prefixes are not consumed by Pipit. Use `:` or Ctrl/Cmd+K for every PDF action, Ctrl/Cmd+F for PDF-wide search, Ctrl/Cmd+O to open a document, and Alt+Enter / Alt+Shift+Enter for selection lookup. Inputs retain normal typing. Tab/Shift+Tab reach controls; floating previews keep focus inside until Escape or pinning. `+`/`-` zoom the focused preview independently.
+
+Vimium cannot inject into another extension’s pages; the installed viewer therefore supplies its own reader keys. `x` closes the current extension tab using the platform tab API, verified on disposable Chromium and Firefox tabs. In the ordinary web app, `x`/`X` pass through to Vimium rather than trying to bypass browser tab-closing restrictions; Ctrl/Cmd+W and Ctrl/Cmd+Shift+T retain native close/restore behavior. Ctrl+D, Ctrl+U, and Ctrl+PageUp/PageDown are no longer intercepted. Half-page scrolling is `d`/`u`; URL opening moves to `g o`, and theme cycling to `g d`. Single lowercase letters in the guide mean unshifted keys; shifted variants are labeled explicitly.
+
+Extension event-handler ordering cannot be controlled by a website. If a customized Vimium map also captures `:`, comma, or Alt+Enter, configure a per-site Vimium pass-key/exclusion rule for those Pipit entry points. The compatibility tests verify key ownership and browser-native actions, not every Vimium version or custom mapping.
 
 Document parsing, rendering, and reference indexing happen locally. No accounts, analytics, telemetry, or upload endpoint. Remote PDFs are fetched from their original host; following external links contacts their destinations. The extension requests broad host access to fetch and replace PDF navigations, not to read ordinary page content; it injects no content scripts.
 
 Up to six opened local PDFs, each no larger than 25 MB, are cached in IndexedDB. Reading state and themes live in localStorage. This is **not encrypted storage**; clearing the origin's browser data removes it. Remote PDFs are not added to this library. The extension and standalone app have separate storage. PDF scripting and XFA are not enabled.
+
+Notebook entries also live in localStorage, keyed to the document fingerprint: up to 200 entries per PDF, with 8,000 characters each for an excerpt and its note. Browser storage limits can be lower; a save failure is shown and Markdown export remains available. External Scholar searches send the selected reference/passage to Google only after an explicit command. DOI/arXiv actions contact their respective sites.
 
 This is not full Sioyek parity. Lookup is text-based and heuristic, not a semantic citation resolver. Scans have no searchable text without OCR; there is no built-in OCR. Complex columns, unusual numbering, split captions, and bibliography styles can produce missing or incorrect matches. Inspect the preview before trusting a match. There is no SyncTeX, annotation editor, arbitrary key remapping, cross-document citation linking, or cloud sync. Very large documents have not been performance-qualified.
 
@@ -92,6 +135,11 @@ An ordinary browser tab cannot make the **Chrome window transparent** to the des
 - `src/reader.ts`: Mozilla PDF.js rendering, text layers, embedded links, outline, search, extraction, and preview canvas.
 - `core/src/lib.rs`: Rust reference detection and ranking, compiled to WASM and executed by `src/engine.worker.ts`.
 - `src/main.ts`, `src/ui.ts`, `src/style.css`: application state, keyboard controls, dialogs, and responsive reading workspace.
+- `src/chrome.ts`, `src/chrome.css`, `src/themes.ts`: hover/keyboard chrome, floating glass surfaces, transient scrollbars, and theme tokens.
+- `src/dock-motion.ts`: frame-driven, velocity-preserving dock spring and local icon magnification.
+- `src/text-lines.ts`, `src/research.ts`, `src/research-panel.ts`: heuristic column extraction, numeric reference map, interactive graph, and backlinks.
+- `src/notebook.ts`, `src/research.css`, `src/icons.ts`: local notes and export, quick-look surfaces, and inline icon geometry.
+- `src/color-palette.ts`, `src/theme-palettes.ts`: bounded perceptual palette matching and bundled ANSI palette snapshots.
 - `public/background.js`: Manifest V3 top-level PDF redirect rules. HTML with a `.pdf` suffix is not mistaken for a PDF.
 - `scripts/verification/`: repeatable Playwright CLI scenarios; see [validation instructions](docs/VALIDATION.md).
 
@@ -107,4 +155,4 @@ Both npm and Cargo dependencies are locked. The Rust scripts select rustup's com
 
 Rendering is provided by [Mozilla PDF.js](https://mozilla.github.io/pdf.js/), not a newly written Rust PDF parser. The viewer's WebAssembly reference engine is Rust; the browser UI is TypeScript. Navigation takes inspiration from [Sioyek's commands](https://sioyek-documentation.readthedocs.io/en/latest/commands.html). Chrome integration uses [declarativeNetRequest](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest).
 
-Project code retains the repository's MIT license. PDF.js and its bundled decoder/font notices are distributed with the build under `vendor/`; their respective licenses apply. The field-guide PDF is generated from original project text, not copied from a publication.
+Project code retains the repository's MIT license. PDF.js and its bundled decoder/font notices are distributed with the build under `vendor/`; their respective licenses apply. The interface bundles [Inter 4.1](https://github.com/rsms/inter/tree/v4.1) under the SIL Open Font License, included in `fonts/OFL.txt`. Inline icons use [Lucide](https://github.com/lucide-icons/lucide) geometry under ISC; attribution and full license are in `docs/ICON-LICENSE.txt` and the build's `vendor/LUCIDE-LICENSE.txt`. The original folded-page logo is maintained as `public/mark.svg`; build-time SVG rasterization generates matching browser and extension icons. The field-guide PDF is generated from original project text, not copied from a publication.

@@ -2,6 +2,7 @@ node_modules/
 dist/
 target/
 public/core.wasm
+public/extension-policy.js
 public/sample.pdf
 public/vendor/
 artifacts/
@@ -10,4 +11,8 @@ playwright-report/
 output/
 .playwright-cli/
 scratch/
+site-dist/
+.wrangler/
+.dev.vars*
+.env*
 *.log

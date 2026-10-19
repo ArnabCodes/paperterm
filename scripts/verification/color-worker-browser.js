@@ -1,0 +1,44 @@
+async (page) => {
+  const checks = [];
+  const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message); };
+  const settled = () => page.waitForFunction(() => !document.querySelector('canvas[data-recoloring]'));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press(',');
+  await page.getByRole('button', { name: 'Dracula', exact: true }).click();
+  await page.getByRole('button', { name: 'Catppuccin Latte', exact: true }).click();
+  await page.getByRole('button', { name: 'Dracula', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await settled();
+  const paper = () => page.locator('.canvasWrapper canvas').first().evaluate(canvas => Array.from(canvas.getContext('2d').getImageData(5, 5, 1, 1).data).slice(0, 3).join(','));
+  assert(await paper() === '40,42,54', 'Rapid theme changes settle on the latest worker result');
+  await page.keyboard.press(',');
+  await page.getByRole('button', { name: 'Catppuccin Latte', exact: true }).click();
+  await page.getByRole('button', { name: 'Reset to Paper', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await settled();
+  await page.waitForTimeout(300);
+  assert(await paper() === '255,255,255', 'Reset cannot be overwritten by an older worker result');
+  await page.keyboard.press(',');
+  await page.getByRole('button', { name: 'Dracula', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.locator('#file-input').setInputFiles('dist/sample.pdf');
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '6' && document.querySelector('#loading').hidden);
+  await settled();
+  await page.keyboard.press('c');
+  await page.getByRole('combobox', { name: 'Find a citation', exact: true }).fill('Bush');
+  await page.getByRole('option').first().waitFor(); await page.keyboard.press('Enter');
+  await page.waitForFunction(() => {
+    const canvas = document.querySelector('#portal-canvas');
+    return canvas?.width > 100 && !canvas.dataset.recoloring && Array.from(canvas.getContext('2d').getImageData(5, 5, 1, 1).data).slice(0, 3).join(',') === '40,42,54';
+  });
+  assert(await page.locator('#portal-canvas').evaluate(canvas => Array.from(canvas.getContext('2d').getImageData(5, 5, 1, 1).data).slice(0, 3).join(',')) === '40,42,54', 'Reference previews use the same worker and final theme');
+  await page.keyboard.press('Escape');
+  assert(await page.locator('#page-total').innerText() === '6', 'Switching documents during recoloring preserves the new document');
+  await page.keyboard.press('g'); await page.keyboard.press('g');
+  const before = await page.locator('#viewer-container').evaluate(container => container.scrollTop);
+  const zoom = await page.locator('#zoom-value').innerText();
+  await page.mouse.move(600, 400); await page.mouse.wheel(0, 900);
+  await page.waitForFunction(top => document.querySelector('#viewer-container').scrollTop > top, before);
+  assert(await page.locator('#zoom-value').innerText() === zoom, 'Native mouse-wheel scrolling advances themed pages without changing document zoom');
+  return { passed: checks.length, checks };
+}

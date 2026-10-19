@@ -1,0 +1,106 @@
+import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const endpoint = process.env.GECKODRIVER_URL || 'http://127.0.0.1:4444';
+const binary = process.env.FIREFOX_BINARY || resolve('output/browser-tools/firefox/core/firefox.exe');
+const downloads = resolve(`output/playwright/firefox-downloads-${Date.now()}`);
+mkdirSync(downloads, { recursive: true });
+let session;
+const checks = [];
+async function request(method, path, body) {
+  const response = await fetch(`${endpoint}${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const result = (await response.json()).value;
+  if (!response.ok || result?.error) throw new Error(`${method} ${path}: ${JSON.stringify(result)}`);
+  return result;
+}
+const call = (method, path, body) => request(method, `/session/${session}${path}`, body);
+const execute = (script, ...args) => call('POST', '/execute/sync', { script, args });
+const navigate = url => call('POST', '/url', { url });
+const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+async function wait(expression, label) {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    if (await execute(`return Boolean(${expression})`)) return;
+    await pause(100);
+  }
+  throw new Error(`Timed out: ${label}`);
+}
+async function key(value) {
+  const special = { Escape: '\uE00C', Enter: '\uE007', F1: '\uE031' };
+  const actual = special[value] || value;
+  await call('POST', '/actions', { actions: [{ type: 'key', id: 'keyboard', actions: [{ type: 'keyDown', value: actual }, { type: 'keyUp', value: actual }] }] });
+}
+async function fill(selector, value) {
+  await execute('const input=document.querySelector(arguments[0]);input.value=arguments[1];input.dispatchEvent(new Event("input",{bubbles:true}));', selector, value);
+}
+function check(value, label) { assert.ok(value, label); checks.push(label); }
+
+try {
+  const created = await request('POST', '/session', { capabilities: { alwaysMatch: { browserName: 'firefox', 'moz:firefoxOptions': { binary, args: ['-headless', '--remote-allow-system-access'], prefs: {
+    'browser.download.dir': downloads, 'browser.download.folderList': 2, 'browser.download.alwaysOpenPanel': false,
+    'browser.helperApps.neverAsk.saveToDisk': 'application/pdf,application/octet-stream',
+    'datareporting.policy.dataSubmissionEnabled': false, 'toolkit.telemetry.enabled': false, 'app.update.auto': false,
+  } } } } });
+  session = created.sessionId;
+  writeFileSync('output/playwright/v080-firefox-active-session.json', JSON.stringify({ session }));
+  await call('POST', '/window/rect', { width: 1440, height: 960 });
+  const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
+  const addon = await call('POST', '/moz/addon/install', { path: resolve(`artifacts/pipit-${version}-firefox.xpi`), temporary: true });
+  check(addon === 'paperterm@arnabcodes', 'Unsigned Firefox development XPI installs temporarily');
+  await navigate('http://127.0.0.1:4180/paper?first=one&second=two#page=3');
+  await wait('document.querySelector("#page-total")?.textContent === "6" && document.querySelector("#engine-status")?.textContent.includes("Ready") && document.querySelector("#loading")?.hidden && document.querySelector("#page-current")?.textContent === "3"', 'PDF interception and initial page restoration');
+  const url = await execute('return location.href');
+  check(url.startsWith('moz-extension://'), 'Firefox MIME-based default viewer redirects into the extension');
+  check(url.includes('first=one&second=two') && await execute('return document.querySelector("#page-current").textContent') === '3', 'Queries and PDF page fragments survive the redirect');
+  await key('e'); await fill('#palette-input', '2'); await wait('document.querySelector("[role=option]")', 'equation result'); await key('Enter');
+  await wait('document.querySelector("#portal")?.getAttribute("aria-busy") === "false"', 'equation preview');
+  check((await execute('return document.querySelector("#portal-title").textContent')).includes('Equation (2)'), 'Rust WASM lookup and original-page previews work under Firefox CSP');
+  check(await execute('const node=document.querySelector("#portal-scroll");return node.scrollWidth<=node.clientWidth+1'), 'Firefox quick look shows complete line width');
+  await key('Escape'); await key(','); await execute('document.querySelector("[data-theme=dracula]").click()'); await key('Escape');
+  await wait('document.querySelector("canvas[data-color-backend]") && !document.querySelector("canvas[data-recoloring], canvas[data-color-pending]")', 'themed raster');
+  const color = await execute('const canvas=document.querySelector(".canvasWrapper canvas");return {backend:canvas.dataset.colorBackend,pixel:Array.from(canvas.getContext("2d").getImageData(5,5,1,1).data)}');
+  check(color.pixel.slice(0, 3).join(',') === '40,42,54', 'Firefox applies real theme pixels with local GPU/CPU capability selection');
+  await key('g'); await key('2'); await wait('document.querySelector(".pdfViewer .spread")', 'spread');
+  check(true, 'Keyboard two-page spreads work in Firefox'); await key('g'); await key('2');
+  await key('F1'); check(await execute('return document.querySelectorAll("#help-keys .help-group").length') === 8, 'Shared keyboard guide renders all eight sections in Firefox');
+  await key('Escape');
+  const input = await call('POST', '/element', { using: 'css selector', value: '#file-input' });
+  await call('POST', `/element/${input['element-6066-11e4-a52e-4f735466cecf']}/value`, { text: resolve('output/playwright/fixtures/tracemonkey.pdf') });
+  await wait('document.querySelector("#page-total")?.textContent === "14" && document.querySelector("#engine-status")?.textContent.includes("Ready")', 'real local PDF');
+  check(true, 'Local file picker opens and indexes the 14-page research fixture');
+  await key('/'); await fill('#find-input', 'JavaScript'); await wait('document.querySelector(".textLayer .highlight")', 'real PDF search');
+  check(true, 'Research-paper search highlights work in Firefox'); await key('Escape');
+  writeFileSync('output/playwright/v080-firefox-reader.png', Buffer.from(await call('GET', '/screenshot'), 'base64'));
+  await navigate('http://127.0.0.1:4180/html.pdf');
+  check(await execute('return document.querySelector("h1")?.textContent') === 'Not a PDF', 'An HTML page named pdf is not hijacked');
+  await navigate('http://127.0.0.1:4180/attachment');
+  await wait('document.querySelector("#page-total")?.textContent === "6"', 'inline attachment');
+  check(readdirSync(downloads).length === 0, 'Attachment PDF opens inline without creating a download');
+  await key('g'); await key('D');
+  for (let attempt = 0; attempt < 100 && !readdirSync(downloads).some(name => name.endsWith('.pdf')); attempt++) await pause(100);
+  check(readdirSync(downloads).some(name => name.endsWith('.pdf')), 'Explicit download still saves the original PDF');
+  await navigate('http://127.0.0.1:4180/paper?paperterm-download=1');
+  check((await execute('return location.href')).startsWith('http:'), 'Download bypass leaves the browser in control');
+  await navigate(pathToFileURL(resolve('dist/sample.pdf')).href);
+  await pause(1000);
+  const fileUrlHandoff = await execute('return {url:location.href,reader:!!document.querySelector("#page-total"),pages:document.querySelector("#page-total")?.textContent,toast:document.querySelector("#toast")?.textContent}');
+  const viewer = url.split('?')[0];
+  await call('POST', '/window/new', { type: 'tab' });
+  const handles = await call('GET', '/window/handles');
+  await call('POST', '/window', { handle: handles.at(-1) });
+  await navigate(`${viewer}?demo=1`); await wait('document.querySelector("#page-total")?.textContent === "6"', 'same-extension sample');
+  const before = handles.length;
+  await key('x').catch(() => {});
+  check((await call('GET', '/window/handles')).length === before - 1, 'x closes only the current Firefox extension tab');
+  const result = { passed: checks.length, checks, browser: created.capabilities.browserVersion, colorBackend: color.backend, downloads, fileUrlHandoff };
+  writeFileSync('output/playwright/v080-firefox-results.json', JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result));
+} catch (error) {
+  const diagnostic = { error: String(error), completedChecks: checks };
+  try { diagnostic.page = await execute('const container=document.querySelector("#viewer-container"), page=[...document.querySelectorAll(".page")].find(node=>node.dataset.pageNumber==="3");return {url:location.href,text:document.body.innerText.slice(0,2000),current:document.querySelector("#page-current")?.textContent,ready:document.querySelector("#engine-status")?.textContent,loading:document.querySelector("#loading")?.hidden,top:container?.scrollTop,pageTop:page?.offsetTop,parent:page?.offsetParent?.id,rect:page?.getBoundingClientRect().toJSON()}'); } catch {}
+  writeFileSync('output/playwright/v080-firefox-error.json', JSON.stringify(diagnostic, null, 2));
+  throw error;
+} finally {
+  if (session) await request('DELETE', `/session/${session}`).catch(() => {});
+}

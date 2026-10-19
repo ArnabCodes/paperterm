@@ -1,0 +1,64 @@
+Paperterm inline icons
+
+Source: https://github.com/lucide-icons/lucide
+Release: 0.468.0
+Commit: f12b0de177fbc2a6795e99be065887e72b237123
+SVG source: https://github.com/lucide-icons/lucide/tree/f12b0de177fbc2a6795e99be065887e72b237123/icons
+License source: https://github.com/lucide-icons/lucide/blob/f12b0de177fbc2a6795e99be065887e72b237123/LICENSE
+
+The SVG geometry in src/icons.ts is copied from these official Lucide SVGs.
+Only the shared wrapper is adapted: 20x20 display size, 24x24 viewBox,
+1.6 stroke width, currentColor, rounded caps and joins, and accessibility
+attributes. No runtime icon dependency is used. Unknown names use file-text.
+
+Paperterm key -> Lucide source file (under icons/ at the commit above):
+menu -> panel-left.svg
+search -> search.svg
+command -> command.svg
+open -> folder-open.svg
+settings -> sliders-horizontal.svg
+mark -> bookmark.svg
+back -> chevron-left.svg
+next -> chevron-right.svg
+down -> chevron-down.svg
+close -> x.svg
+plus -> plus.svg
+minus -> minus.svg
+focus -> maximize.svg
+download -> download.svg
+help -> circle-help.svg
+link -> link.svg
+arrow -> arrow-up-right.svg
+document -> file-text.svg
+ruler -> ruler.svg
+pin -> pin.svg
+unpin -> pin-off.svg
+graph -> network.svg
+quote -> quote.svg
+note -> sticky-note.svg
+copy -> copy.svg
+export -> file-down.svg
+expand -> expand.svg
+equation -> sigma.svg
+citations -> library-big.svg
+history -> history.svg
+crop -> crop.svg
+check -> check.svg
+
+The complete upstream license follows, including its Feather attribution:
+
+ISC License
+
+Copyright (c) for portions of Lucide are held by Cole Bemis 2013-2022 as part of Feather (MIT). All other copyright (c) for Lucide are held by Lucide Contributors 2022.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.

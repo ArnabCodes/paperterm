@@ -1,26 +1,34 @@
 {
-  "name": "paperterm",
+  "name": "pipit",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.8.0",
   "type": "module",
   "description": "A quiet PDF workspace with keyboard navigation and reference portals",
   "scripts": {
     "prepare:assets": "node scripts/assets.mjs",
     "build:core": "node scripts/build-core.mjs",
     "dev": "npm run prepare:assets && npm run build:core && vite --host 127.0.0.1",
-    "build": "npm run prepare:assets && npm run build:core && tsc --noEmit && vite build",
+    "build": "npm run prepare:assets && npm run build:core && tsc --noEmit && vite build && node scripts/build-extensions.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node scripts/test-core.mjs",
-    "package": "node scripts/package.mjs"
+    "test": "node scripts/test-core.mjs && node scripts/verification/research-unit.mjs && node scripts/verification/text-lines-unit.mjs && node scripts/verification/color-palette-unit.mjs && node scripts/verification/color-queue-unit.mjs && node scripts/verification/shortcuts-unit.mjs && node scripts/verification/platform-unit.mjs",
+    "package": "node scripts/package.mjs",
+    "safari:package": "bash scripts/safari-package.sh",
+    "build:site": "node scripts/build-site.mjs",
+    "site:preview": "vite preview --host 127.0.0.1 --port 4181 --strictPort --outDir site-dist",
+    "site:deploy": "wrangler pages deploy site-dist --project-name=pipit-reader --branch=main",
+    "test:site": "node scripts/verification/site-unit.mjs && node scripts/verification/site-build.mjs",
+    "verify:alpha": "npm test && npm run build && npm run package && node scripts/verification/extension-packages.mjs && npm run build:site && npm run test:site"
   },
   "dependencies": {
     "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@resvg/resvg-js": "^2.6.2",
     "fflate": "^0.8.3",
     "pdf-lib": "^1.17.1",
     "typescript": "~5.9.3",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "wrangler": "4.151.2"
   }
 }

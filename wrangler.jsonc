@@ -1,0 +1,6 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pipit-reader",
+  "pages_build_output_dir": "./site-dist",
+  "compatibility_date": "2026-10-19"
+}

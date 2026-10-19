@@ -1,0 +1,60 @@
+async (page) => {
+  page.setDefaultTimeout(10000);
+  const checks = [];
+  const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message); };
+  await page.keyboard.press('Escape');
+  await page.locator('#file-input').setInputFiles('output/playwright/fixtures/tracemonkey.pdf');
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '14' && document.querySelector('#engine-status').textContent.includes('Ready'));
+  const unexpected = [];
+  const listener = request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:4173/')) unexpected.push(request.url()); };
+  page.on('request', listener);
+  try {
+    await page.keyboard.press('g'); await page.keyboard.press('c');
+    await page.getByRole('dialog', { name: 'Citation graph', exact: true }).waitFor();
+    assert((await page.locator('#research-summary').textContent()).startsWith('19 bibliography entries'), 'Two-column research paper exposes all 19 bibliography entries');
+    const labels = await page.locator('.reference-card').evaluateAll(nodes => nodes.slice(0, 19).map(node => node.dataset.reference));
+    assert(labels.every((label, index) => label === `reference:${index + 1}`), 'All real bibliography labels retain their order; unmatched numeric markers are separate entries');
+    await page.getByRole('searchbox', { name: 'Filter references', exact: true }).fill('Garrett');
+    assert(await page.locator('.reference-card').count() === 1 && (await page.locator('.reference-card').textContent()).includes('[12]'), 'Two-column author search resolves the correct bibliography entry');
+    await page.getByRole('searchbox', { name: 'Filter references', exact: true }).fill('');
+    const node = page.locator('#citation-graph [data-reference]').nth(1);
+    const id = await node.getAttribute('data-reference');
+    await node.focus(); await page.keyboard.press('Enter');
+    assert(await page.locator(`#citation-graph [data-reference="${id}"]`).evaluate(node => node === document.activeElement) && await page.locator(`.reference-card[data-reference="${id}"]`).getAttribute('aria-pressed') === 'true', 'Graph nodes can be chosen with the keyboard without losing focus');
+    await page.screenshot({ path: 'output/playwright/research-paper-graph.png', animations: 'disabled' });
+    await page.getByRole('button', { name: 'Quick look', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#portal').getAttribute('aria-busy') === 'false');
+    assert(await page.locator('#portal-page').textContent() === 'Page 14', 'Real bibliography quick look displays the original PDF page');
+    assert(unexpected.length === 0, 'Citation graph and quick look make no external network requests');
+  } finally { page.off('request', listener); }
+  await page.keyboard.press('Escape');
+  await page.goto('http://127.0.0.1:4173/?demo=1&verify=notebook#page=1');
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '6' && document.querySelector('#loading').hidden);
+  await page.keyboard.press('a');
+  await page.waitForFunction(() => [...document.querySelectorAll('.textLayer span')].some(span => span.textContent.includes('Reading a technical paper')));
+  await page.evaluate(() => {
+    const span = [...document.querySelectorAll('.textLayer span')].find(span => span.textContent.includes('Reading a technical paper'));
+    const range = document.createRange(); range.selectNodeContents(span);
+    const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+  });
+  await page.keyboard.press(':');
+  await page.getByRole('combobox', { name: 'Find a command', exact: true }).fill('capture selected');
+  await page.keyboard.press('Enter');
+  const notebook = page.getByRole('dialog', { name: 'Research notebook', exact: true });
+  await notebook.waitFor();
+  assert((await notebook.locator('blockquote').last().textContent()).includes('Reading a technical paper'), 'Capture command preserves the PDF selection while the command menu is open');
+  await notebook.locator('textarea').last().fill('Document isolation verification note.');
+  await page.keyboard.press('Escape');
+  await page.locator('#file-input').setInputFiles('output/playwright/fixtures/tracemonkey.pdf');
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '14' && document.querySelector('#loading').hidden);
+  await page.keyboard.press('Q');
+  assert(!(await notebook.locator('textarea').evaluateAll(nodes => nodes.map(node => node.value))).includes('Document isolation verification note.'), 'Notebook entries stay with their own document');
+  await page.keyboard.press('Escape');
+  await page.locator('#file-input').setInputFiles('dist/sample.pdf');
+  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '6' && document.querySelector('#loading').hidden);
+  await page.keyboard.press('Q');
+  await notebook.locator('[data-delete]').last().click();
+  await page.keyboard.press('Escape');
+  return { passed: checks.length, checks };
+}

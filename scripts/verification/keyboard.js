@@ -1,10 +1,11 @@
 async (page) => {
   const checks = [];
+  try {
   page.setDefaultTimeout(8000);
   const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message); console.log('PASS ' + message); };
-  const currentPage = () => page.getByRole('button', { name: 'Go to page', exact: true }).innerText();
+  const currentPage = () => page.locator('#page-current').textContent();
   const jump = async number => {
-    await page.keyboard.press(':');
+    await page.keyboard.press('p');
     await page.getByRole('combobox', { name: 'Go to page', exact: true }).fill(String(number));
     await page.keyboard.press('Enter');
     await page.waitForFunction(number => document.querySelector('#page-current').textContent === String(number), number);
@@ -16,8 +17,8 @@ async (page) => {
   await page.waitForFunction(() => document.querySelector('#page-current').textContent === '1');
   assert((await currentPage()).startsWith('1'), 'Reading history returns to page 1');
   await jump(3);
-  if (await page.getByRole('button', { name: 'Bookmark this page (b)', exact: true }).getAttribute('aria-pressed') !== 'true') await page.keyboard.press('b');
-  assert(await page.getByRole('button', { name: 'Bookmark this page (b)', exact: true }).getAttribute('aria-pressed') === 'true', 'Keyboard bookmark saved');
+  if (await page.locator('[data-action="bookmark"]').getAttribute('aria-pressed') !== 'true') await page.keyboard.press('b');
+  assert(await page.locator('[data-action="bookmark"]').getAttribute('aria-pressed') === 'true', 'Keyboard bookmark saved');
   await page.keyboard.press('m'); await page.keyboard.press('q');
   await jump(4);
   await page.keyboard.press("'"); await page.keyboard.press('q');
@@ -46,15 +47,15 @@ async (page) => {
   await page.waitForFunction(() => document.querySelector('#page-current').textContent === '3');
   assert((await currentPage()).startsWith('3'), 'Equation lookup jumps to definition');
   await page.keyboard.press(',');
-  await page.getByRole('button', { name: 'Aa Night', exact: true }).click();
+  await page.getByRole('button', { name: 'Night', exact: true }).click();
   assert(await page.locator('html').getAttribute('data-theme') === 'night', 'Night theme applies');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: 'output/playwright/night-reader.png' });
-  const oldZoom = await page.locator('#zoom-value').innerText();
+  const oldZoom = await page.locator('#zoom-value').textContent();
   await page.keyboard.press('+');
-  assert(await page.locator('#zoom-value').innerText() !== oldZoom, 'Keyboard zoom changes scale');
+  assert(await page.locator('#zoom-value').textContent() !== oldZoom, 'Keyboard zoom changes scale');
   await page.keyboard.press('z');
-  assert(!await page.getByRole('banner').isVisible(), 'Focus mode hides chrome');
+  assert(await page.locator('body').evaluate(node => node.classList.contains('focus-mode')), 'Focus mode hides chrome');
   await page.keyboard.press('z');
   await page.keyboard.press('g'); await page.keyboard.press('g');
   await page.keyboard.press('a');
@@ -78,4 +79,5 @@ async (page) => {
   await page.keyboard.press('Enter');
   assert(await page.locator('#portal-page').innerText() === 'Page 4', 'Command palette and figure lookup reach figure 1');
   return { passed: checks.length, checks };
+  } catch (error) { throw new Error(`Completed ${checks.length} checks; last: ${checks.at(-1)}. ${error.message}`); }
 }

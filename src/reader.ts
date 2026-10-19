@@ -5,7 +5,8 @@ import type { PDFViewer as ViewerType } from 'pdfjs-dist/types/web/pdf_viewer';
 import type { PDFLinkService as LinkType } from 'pdfjs-dist/types/web/pdf_link_service';
 import type { EventBus as BusType } from 'pdfjs-dist/types/web/event_utils';
 import type { Preferences, ReferenceHit, TextLine } from './types';
-import { recolorCanvas } from './preferences';
+import { CanvasColorizer } from './canvas-colorizer';
+import { extractTextLines } from './text-lines';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const { PDFViewer, PDFLinkService, PDFFindController, EventBus } = await import('pdfjs-dist/web/pdf_viewer.mjs');
@@ -23,6 +24,10 @@ export class Reader {
   private previewTask?: RenderTask;
   private previewGeneration = 0;
   private original = new WeakMap<HTMLCanvasElement, ImageData>();
+  private colors = new CanvasColorizer();
+  private colorVersions = new WeakMap<HTMLCanvasElement, number>();
+  private covers = new Map<HTMLElement, HTMLCanvasElement>();
+  private appliedColors = '';
   onPage = (_page: number) => {};
   onZoom = (_zoom: number) => {};
   onMatches = (_current: number, _total: number) => {};
@@ -38,6 +43,31 @@ export class Reader {
     const findController = new PDFFindController({ eventBus: this.bus, linkService: this.links });
     this.viewer = new PDFViewer({ container, viewer: document.querySelector<HTMLDivElement>('#viewer')!, eventBus: this.bus, linkService: this.links, findController, removePageBorders: true, textLayerMode: 1, annotationMode: 1, enableDetailCanvas: false, imageResourcesPath: new URL('vendor/images/', document.baseURI).href, maxCanvasPixels: 8_000_000 });
     this.links.setViewer(this.viewer);
+    this.bus.on('pagerender', (event: { source: { canvas?: HTMLCanvasElement; div: HTMLDivElement } }) => {
+      const canvas = event.source.canvas;
+      if (canvas) {
+        if (this.preferences.recolor || this.preferences.palette.length) {
+          canvas.dataset.colorPending = 'true';
+          const page = event.source.div;
+          const previous = page.querySelector<HTMLCanvasElement>('.canvasWrapper canvas');
+          if (!this.covers.has(page) && previous && previous !== canvas && previous.width && previous.height) {
+            if (this.covers.size >= 4) {
+              const oldest = this.covers.keys().next().value!;
+              this.covers.get(oldest)!.remove(); this.covers.delete(oldest);
+            }
+            const cover = document.createElement('canvas');
+            cover.className = 'page-color-cover'; cover.setAttribute('aria-hidden', 'true');
+            cover.width = previous.width; cover.height = previous.height;
+            cover.getContext('2d')!.drawImage(previous, 0, 0);
+            page.append(cover); this.covers.set(page, cover);
+          }
+        }
+        this.colors.cancel(canvas);
+        this.colorVersions.set(canvas, (this.colorVersions.get(canvas) || 0) + 1);
+        delete canvas.dataset.recoloring;
+        canvas.getContext('2d', { alpha: true, willReadFrequently: true });
+      }
+    });
     this.bus.on('pagechanging', (event: { pageNumber: number }) => this.onPage(event.pageNumber));
     this.bus.on('scalechanging', (event: { scale: number }) => this.onZoom(event.scale));
     this.bus.on('updatefindmatchescount', (event: { matchesCount: { current: number; total: number } }) => this.onMatches(event.matchesCount.current, event.matchesCount.total));
@@ -47,12 +77,15 @@ export class Reader {
       const canvas = event.source.canvas;
       if (!canvas || event.cssTransform) return;
       this.original.delete(canvas);
-      this.color(canvas);
+      void this.color(canvas).catch(this.onError);
     });
   }
 
   async load(source: Uint8Array | string, zoom: string, page: number) {
     const generation = ++this.generation;
+    for (const cover of this.covers.values()) cover.remove();
+    this.covers.clear();
+    this.colors.cancel();
     this.cancelPreview();
     this.viewer.setDocument(null);
     this.links.setDocument(null);
@@ -95,26 +128,23 @@ export class Reader {
   private async index(pdf: PDFDocumentProxy, generation: number) {
     const lines: TextLine[] = [];
     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+      await new Promise<void>(resolve => {
+        if ('requestIdleCallback' in window) window.requestIdleCallback(() => resolve(), { timeout: 250 });
+        else setTimeout(resolve, 16);
+      });
       if (generation !== this.generation) return;
       const page = await pdf.getPage(pageNumber);
       const viewport = page.getViewport({ scale: 1 });
       const content = await page.getTextContent();
-      const rows: { text: string; x: number; y: number }[][] = [];
+      const items: { text: string; x: number; y: number; width: number }[] = [];
       for (const raw of content.items) {
         if (!('str' in raw) || !raw.str.trim()) continue;
         const item = raw as TextItem;
         const [xpos, ypos] = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
-        const entry = { text: item.str, x: xpos, y: ypos };
-        const row = rows.find(existing => Math.abs(existing[0].y - ypos) < 3);
-        if (row) row.push(entry); else rows.push([entry]);
+        items.push({ text: item.str, x: xpos, y: ypos, width: item.width });
       }
-      rows.sort((left, right) => left[0].y - right[0].y);
-      for (const row of rows) {
-        row.sort((left, right) => left.x - right.x);
-        lines.push({ text: row.map(item => item.text).join(' '), page: pageNumber, x: row[0].x / viewport.width, y: row[0].y / viewport.height });
-      }
+      lines.push(...extractTextLines(items, pageNumber, viewport.width, viewport.height));
       if (pageNumber % 10 === 0 || pageNumber === pdf.numPages) this.onIndex([...lines], pageNumber === pdf.numPages);
-      await new Promise(resolve => setTimeout(resolve, 0));
     }
   }
 
@@ -151,11 +181,34 @@ export class Reader {
     if (!this.document) return;
     const safePage = Math.max(1, Math.min(this.document.numPages, page));
     this.viewer.currentPageNumber = safePage;
-    if (normalizedY !== undefined) {
-      const view = this.viewer.getPageView(safePage - 1);
-      if (view?.div) this.container.scrollTop = view.div.offsetTop + view.div.clientHeight * normalizedY - 100;
+    const view = this.viewer.getPageView(safePage - 1);
+    if (view?.div) {
+      const top = this.container.scrollTop + view.div.getBoundingClientRect().top - this.container.getBoundingClientRect().top;
+      this.container.scrollTop = top + (normalizedY === undefined ? 0 : view.div.clientHeight * normalizedY - Math.min(this.container.clientHeight / 2, view.div.clientHeight * .65));
     }
     this.viewer.update();
+  }
+
+  async smartWidth() {
+    const pdf = this.document, generation = this.generation;
+    if (!pdf) return;
+    const pageNumber = this.viewer.currentPageNumber;
+    const page = await pdf.getPage(pageNumber);
+    const viewport = page.getViewport({ scale: 1, rotation: (page.rotate + this.viewer.pagesRotation) % 360 });
+    const content = await page.getTextContent();
+    if (generation !== this.generation) return;
+    const boxes = content.items.filter((item): item is TextItem => 'str' in item && !!item.str.trim()).map(item => {
+      const first = viewport.convertToViewportPoint(item.transform[4], item.transform[5]);
+      const last = viewport.convertToViewportPoint(item.transform[4] + item.width, item.transform[5] + item.height);
+      return [Math.min(first[0], last[0]), Math.max(first[0], last[0])];
+    });
+    if (!boxes.length) { this.viewer.currentScaleValue = 'page-width'; return; }
+    const left = Math.max(0, Math.min(...boxes.map(box => box[0]), viewport.width * .2) - 12);
+    const right = Math.min(viewport.width, Math.max(...boxes.map(box => box[1]), viewport.width * .8) + 12);
+    const scale = Math.max(.2, Math.min(5, (this.container.clientWidth - 32) / (right - left) / (96 / 72)));
+    this.viewer.currentScale = scale;
+    const view = this.viewer.getPageView(pageNumber - 1);
+    this.container.scrollLeft = Math.max(0, (view?.div.offsetLeft || 0) + left * scale * (96 / 72) - 16);
   }
 
   async resolveDestination(destination: string | unknown[]): Promise<{ page: number; y: number } | null> {
@@ -170,39 +223,89 @@ export class Reader {
     return { page: pageNumber, y: typeof top === 'number' ? viewport.convertToViewportPoint(0, top)[1] / viewport.height : 0 };
   }
 
-  async preview(hit: Pick<ReferenceHit, 'page' | 'y'>, canvas: HTMLCanvasElement) {
+  async preview(hit: Pick<ReferenceHit, 'page' | 'y'>, canvas: HTMLCanvasElement, magnification = 1) {
     this.cancelPreview();
+    this.colors.cancel(canvas);
+    this.colorVersions.set(canvas, (this.colorVersions.get(canvas) || 0) + 1);
+    delete canvas.dataset.recoloring;
     const generation = this.previewGeneration;
     if (!this.document) return false;
     const page = await this.document.getPage(hit.page);
     if (generation !== this.previewGeneration) return false;
-    const width = Math.max(260, (canvas.parentElement?.clientWidth || 400) - 24);
-    const base = page.getViewport({ scale: 1 });
-    const cssScale = width / base.width;
-    const viewport = page.getViewport({ scale: cssScale * Math.min(window.devicePixelRatio || 1, 2) });
-    canvas.width = viewport.width; canvas.height = viewport.height;
-    canvas.style.width = `${width}px`; canvas.style.height = `${base.height * cssScale}px`;
-    this.previewTask = page.render({ canvas, viewport, annotationMode: 0 });
+    const rotation = (page.rotate + this.viewer.pagesRotation) % 360;
+    const base = page.getViewport({ scale: 1, rotation });
+    const availableWidth = Math.max(120, canvas.parentElement!.clientWidth - 16);
+    const cssScale = Math.min(this.viewer.currentScale * (96 / 72) * .95, availableWidth / base.width) * magnification;
+    const width = base.width * cssScale;
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(8_000_000 / (base.width * base.height * cssScale * cssScale)));
+    const viewport = page.getViewport({ scale: cssScale * pixelRatio, rotation });
+    const buffer = document.createElement('canvas');
+    buffer.width = viewport.width; buffer.height = viewport.height;
+    buffer.getContext('2d', { alpha: true, willReadFrequently: true });
+    this.previewTask = page.render({ canvas: buffer, viewport, annotationMode: 0 });
     try { await this.previewTask.promise; } catch (error) { if (generation !== this.previewGeneration) return false; throw error; }
     if (generation !== this.previewGeneration) return false;
-    this.original.delete(canvas);
-    this.color(canvas);
+    await this.color(buffer, true);
+    if (generation !== this.previewGeneration) return false;
+    canvas.width = buffer.width; canvas.height = buffer.height;
+    canvas.style.width = `${width}px`; canvas.style.height = `${base.height * cssScale}px`;
+    canvas.dataset.documentScale = String(cssScale / (96 / 72));
+    canvas.dataset.colorBackend = buffer.dataset.colorBackend || 'original';
+    canvas.getContext('2d', { alpha: true, willReadFrequently: true })!.drawImage(buffer, 0, 0);
+    const source = this.original.get(buffer);
+    if (source) this.original.set(canvas, source); else this.original.delete(canvas);
     return true;
   }
 
   cancelPreview() { this.previewGeneration++; this.previewTask?.cancel(); this.previewTask = undefined; }
 
-  color(canvas: HTMLCanvasElement) {
+  async color(canvas: HTMLCanvasElement, allowDetached = false) {
+    const version = (this.colorVersions.get(canvas) || 0) + 1;
+    this.colorVersions.set(canvas, version);
+    const generation = this.generation;
+    this.colors.cancel(canvas);
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context || !canvas.width || !canvas.height) return;
     const original = this.original.get(canvas);
-    if (original && original.width === canvas.width && original.height === canvas.height) context.putImageData(original, 0, 0);
-    else if (this.preferences.recolor || this.preferences.palette.length) this.original.set(canvas, context.getImageData(0, 0, canvas.width, canvas.height));
-    recolorCanvas(canvas, this.preferences);
+    if (!this.preferences.recolor && !this.preferences.palette.length) {
+      if (original && original.width === canvas.width && original.height === canvas.height) context.putImageData(original, 0, 0);
+      delete canvas.dataset.recoloring;
+      this.revealCanvas(canvas);
+      return;
+    }
+    canvas.dataset.recoloring = 'true';
+    const width = canvas.width, height = canvas.height;
+    try {
+      const image = await this.colors.transform(canvas, () => {
+        if (generation !== this.generation || version !== this.colorVersions.get(canvas) || (!allowDetached && !canvas.isConnected) || canvas.width !== width || canvas.height !== height) return null;
+        let source = this.original.get(canvas);
+        if (!source || source.width !== width || source.height !== height) {
+          source = context.getImageData(0, 0, width, height);
+          this.original.set(canvas, source);
+        }
+        return source;
+      }, this.preferences);
+      if (image && generation === this.generation && version === this.colorVersions.get(canvas) && (allowDetached || canvas.isConnected) && canvas.width === width && canvas.height === height) {
+        context.putImageData(image, 0, 0); this.revealCanvas(canvas);
+      }
+    } finally {
+      if (version === this.colorVersions.get(canvas)) delete canvas.dataset.recoloring;
+    }
+  }
+
+  private revealCanvas(canvas: HTMLCanvasElement) {
+    delete canvas.dataset.colorPending;
+    const page = canvas.closest<HTMLElement>('.page');
+    if (page) { this.covers.get(page)?.remove(); this.covers.delete(page); }
   }
 
   applyPreferences(preferences: Preferences) {
     this.preferences = preferences;
-    document.querySelectorAll<HTMLCanvasElement>('.canvasWrapper canvas, #portal-canvas').forEach(canvas => this.color(canvas));
+    const key = JSON.stringify({ ...preferences, glass: false });
+    if (this.appliedColors === key) return;
+    this.appliedColors = key;
+    document.querySelectorAll<HTMLCanvasElement>('.canvasWrapper canvas, #portal-canvas').forEach(canvas => {
+      if (!canvas.hidden) void this.color(canvas).catch(this.onError);
+    });
   }
 }
