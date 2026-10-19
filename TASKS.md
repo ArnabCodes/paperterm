@@ -26,7 +26,7 @@ Updated: 2026-10-19. Direction: minimal browser-first PDF workspace, replacing t
 | Open | Test macOS and Linux Chrome | Joint | Browser architecture is portable; no claim of execution on these OSes yet |
 | Open | Audit edge PDFs and large-document behavior | Joint | Scans, CJK/RTL, mixed page sizes, complex columns, huge files, enterprise auth |
 | Done | Alpha 01 rebrand and download website | Codex | Pipit name, bird identity/Pip art, local browser/platform detection, all three download choices, manual setup, checksum metadata, privacy/credits and live shared reader |
-| Waiting | Cloudflare production publication | Arnab / Codex | Public website/download hosting authorized; stored login expired. Arnab renews wrangler login, Codex deploys and checks public URL |
+| Done | Cloudflare production publication | Codex | https://pipit-reader.pages.dev/ deployed after device approval; all three public downloads match committed hashes; 41 anonymous HTTPS checks pass |
 | Done | Alpha validation and GitHub prerelease | Codex | 208 browser assertions, 83 unit/detection checks, 37 artifact checks; commit 6381798 and v0.8.0-alpha.1 published privately; all three GitHub downloads hash-verified |
 | Optional | Store distribution and signing | Arnab | No store submission or paid signing authorized; Firefox unsigned, Safari source-only |
 

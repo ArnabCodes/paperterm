@@ -4,6 +4,8 @@ Date: 2026-10-19. Local Windows validation, not an assertion of universal PDF co
 
 ## Version 0.8.0 — Pipit Alpha 01
 
+**Production verification:** https://pipit-reader.pages.dev/ is deployed on Cloudflare Pages. An additional 37 browser assertions pass against the real HTTPS site, including real download-button clicks and WASM previews. Anonymous fetching passes 41 checks: all three package hashes/sizes/archive contents match the committed release manifest, checksum companions match, attachment/CSP headers apply, and private paths are unavailable. Logs and downloaded files are cached as `v080-public-*` under ignored output/playwright. These are production-delivery checks, not native Safari runtime or installation approval.
+
 The full `npm run verify:alpha` pipeline passes: production TypeScript/Vite/Rust build, 71 reader/platform unit checks, 12 browser-detection cases, 16 extension-archive checks and 21 website-artifact checks. The three targets share 304 byte-identical assets. The new public-facing name/icon and package names are Pipit; existing storage keys and Firefox identity are deliberately retained. The pipeline is repeatable validation, not a claim of bit-for-bit deterministic PDF/ZIP generation.
 
 Windows browser evidence totals **208 passing assertions**:
@@ -20,7 +22,7 @@ Windows browser evidence totals **208 passing assertions**:
 
 Website tests use Wrangler's local Pages runtime, including actual CSP/header behavior, all three file downloads and checksum endpoints, a genuine 404, desktop/tablet/phone overflow down to 320px, keyboard-operated illustration, selected theme state, reduced-motion preference, and real WASM equation lookup in `/reader/`. Firefox/Safari/iPhone user-agent simulations test download advice only, not native Safari execution. Separate contexts verify no-JavaScript setup/downloads and graceful metadata-fetch failure. Landing page/local sample flows make no third-party requests; no JavaScript runtime errors are observed. Screenshots and raw logs are cached as `output/playwright/v080-*`.
 
-Production and full dependency `npm audit` report zero known vulnerabilities at this check; this is not a security audit. Firefox web-ext lint reports zero errors/notices and 19 warnings (bundled dynamic HTML/import assignments and unsupported Android minimum metadata). Native Safari signing/testing, macOS/Linux execution, store approval, mobile support and broad PDF/performance qualification remain open. Cloudflare's local emulator is not a public HTTPS deployment; public URL verification waits for renewed account authentication.
+Production and full dependency `npm audit` report zero known vulnerabilities at this check; this is not a security audit. Firefox web-ext lint reports zero errors/notices and 19 warnings (bundled dynamic HTML/import assignments and unsupported Android minimum metadata). Native Safari signing/testing, macOS/Linux execution, store approval, mobile support and broad PDF/performance qualification remain open. The original local-emulator evidence is distinct from the subsequent public HTTPS verification above.
 
 ## Version 0.7.0
 

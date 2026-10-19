@@ -1,6 +1,7 @@
 async (page) => {
   const checks = [], errors = [], external = [];
-  const base = 'http://127.0.0.1:4181';
+  const base = new URL(page.url()).origin;
+  const artifact = base.startsWith('https:') ? 'v080-public-site' : 'v080-site';
   const assert = (value, label) => { if (!value) throw new Error(label); checks.push(label); };
   page.on('pageerror', error => errors.push(String(error)));
   page.on('request', request => { if (/^https?:/.test(request.url()) && !request.url().startsWith(base)) external.push(request.url()); });
@@ -14,7 +15,7 @@ async (page) => {
   assert(await page.locator('.download-card').count() === 3, 'All three browser targets remain visible');
   assert((response.headers()['content-security-policy'] || '').includes("script-src 'self'"), 'Cloudflare headers apply a site CSP');
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Desktop has no horizontal overflow');
-  await page.screenshot({ path: 'output/playwright/v080-site-desktop.png', fullPage: true });
+  await page.screenshot({ path: `output/playwright/${artifact}-desktop.png`, fullPage: true });
   await page.locator('#peek-trigger').focus(); await page.keyboard.press('Enter');
   assert(await page.locator('#demo-preview').isVisible(), 'Reference illustration works with the keyboard');
   await page.keyboard.press('Escape');
@@ -27,7 +28,7 @@ async (page) => {
     const link = page.locator(`[data-target="${target}"]`);
     const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
     assert(download.suggestedFilename().startsWith('pipit-0.8.0-'), `${target} link downloads a real versioned artifact`);
-    await download.saveAs(`output/playwright/v080-download-${download.suggestedFilename()}`);
+    await download.saveAs(`output/playwright/${artifact}-download-${download.suggestedFilename()}`);
     const checksum = await page.request.get(new URL(await page.locator(`[data-checksum="${target}"]`).getAttribute('href'), base).href);
     assert(checksum.ok() && /^[a-f0-9]{64}  pipit-/.test(await checksum.text()), `${target} checksum is served`);
   }
@@ -41,7 +42,7 @@ async (page) => {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => scrollTo(0, 0));
-  await page.screenshot({ path: 'output/playwright/v080-site-phone.png', fullPage: true });
+  await page.screenshot({ path: `output/playwright/${artifact}-phone.png`, fullPage: true });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert(await page.locator('#mascot').evaluate(node => getComputedStyle(node).animationName === 'none'), 'Reduced-motion preference stops decorative animation');
   await page.emulateMedia({ reducedMotion: 'no-preference' });

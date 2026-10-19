@@ -30,11 +30,17 @@ npm run site:deploy
 
 Confirm the returned production URL, fetch all three packages and compare hashes to `site-dist/release.json`, verify security/download headers and 404 handling, and exercise `/reader/?demo=1` over HTTPS before calling deployment complete. No custom domain, paid resource, store submission, or signing is part of this release.
 
-Cloudflare authentication was expired during the initial local build; renewal requires Arnab. Do not report the site as live until an authenticated deployment and public-URL checks succeed.
+**Live:** https://pipit-reader.pages.dev/ — production deployment `8a806a54-ccb1-4352-9190-a9b08e190056`, published on 2026-10-19 after Arnab approved device authorization from his Mac. Scoped Pages OAuth was sufficient; broader Worker/AI permissions were not added. Initial project creation required Wrangler's `--force` fallback to avoid unsupported Workers delegation; subsequent commands target the existing Pages project normally.
+
+All three public package downloads and their checksum companions match `docs/releases/0.8.0-alpha.1.json`. Anonymous HTTPS verification passes 41 checks, including correct ZIP/XPI contents, valid WASM, attachment headers, separate site/reader CSPs, 404 behavior, and no exposed Git/env/extension manifest. Cache: `output/playwright/v080-public-downloads.json`. Repeat without rebuilding or changing the published packages:
+
+```sh
+node scripts/verification/public-downloads.mjs https://pipit-reader.pages.dev
+```
 
 ## GitHub
 
-The repository stays private at `ArnabCodes/paperterm` to preserve history and existing links. The product, visible UI, package names and distribution page are Pipit. [Pipit Alpha 01](https://github.com/ArnabCodes/paperterm/releases/tag/v0.8.0-alpha.1) is published as a private prerelease at commit `6381798`; all three downloaded GitHub artifacts were independently checked against the release manifest hashes. Public downloads will be served from Cloudflare rather than private GitHub asset URLs. Store listings and public repository visibility are not authorized by this change.
+The repository stays private at `ArnabCodes/paperterm` to preserve history and existing links. The product, visible UI, package names and distribution page are Pipit. [Pipit Alpha 01](https://github.com/ArnabCodes/paperterm/releases/tag/v0.8.0-alpha.1) is published as a private prerelease at commit `6381798`; all three downloaded GitHub artifacts were independently checked against the release manifest hashes. Public downloads are served from Cloudflare rather than private GitHub asset URLs. Store listings and public repository visibility are not authorized by this change.
 
 ## Known alpha gaps
 

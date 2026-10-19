@@ -6,9 +6,9 @@ Formerly **Paperterm**, now **Pipit**. This browser-first implementation replace
 
 ## Start here
 
-**Status:** **0.8.0 / Alpha 01** has a shared web reader, tested Chromium and Firefox extensions, a Safari source target, and a browser-aware download website with Pip the bird mascot. Safari installation/runtime validation and macOS/Linux testing remain open. Safari does not automatically intercept PDF responses. No store listing or public deployment exists yet. See [browser support and installation](docs/BROWSERS.md) and [performance evidence](docs/PERFORMANCE.md).
+**Status:** **0.8.0 / Alpha 01** is live at [pipit-reader.pages.dev](https://pipit-reader.pages.dev/), with tested Chromium and Firefox extensions, a Safari source target, and a browser-aware download website with Pip the bird mascot. Safari installation/runtime validation and macOS/Linux testing remain open. Safari does not automatically intercept PDF responses. No store listing exists. See [browser support and installation](docs/BROWSERS.md) and [performance evidence](docs/PERFORMANCE.md).
 
-**Next:** try the Alpha 01 packages and the download page. See the [alpha dashboard](docs/ALPHA.md) for website build/deployment, [TASKS.md](TASKS.md) for ownership, and [validation](docs/VALIDATION.md) for actual test coverage and limits. Cloudflare publication requires a renewed login; local website preview uses port 4181.
+**Next:** try the Alpha 01 packages on the [download page](https://pipit-reader.pages.dev/#download). See the [alpha dashboard](docs/ALPHA.md) for website build/deployment, [TASKS.md](TASKS.md) for ownership, and [validation](docs/VALIDATION.md) for actual test coverage and limits. Local website preview uses port 4181.
 
 ### Build and run
 
