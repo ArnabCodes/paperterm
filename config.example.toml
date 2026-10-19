@@ -1,9 +1,0 @@
-background = "#f7f3e8"
-foreground = "#25231f"
-transparent_background = false
-page_width = 100
-render_scale = 1.5
-
-[palette]
-"#ffffff" = "#f7f3e8"
-"#000000" = "#25231f"

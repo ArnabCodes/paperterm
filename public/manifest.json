@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "128",
+  "name": "Paperterm — PDF workspace",
+  "version": "0.2.0",
+  "description": "A quiet PDF reader with keyboard navigation, reference previews, and custom reading themes.",
+  "permissions": ["declarativeNetRequestWithHostAccess", "storage"],
+  "host_permissions": ["http://*/*", "https://*/*", "file:///*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Open Paperterm" },
+  "icons": { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" },
+  "content_security_policy": { "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'" },
+  "web_accessible_resources": [{ "resources": ["index.html"], "matches": ["<all_urls>"] }]
+}

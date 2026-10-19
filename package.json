@@ -1,0 +1,26 @@
+{
+  "name": "paperterm",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "A quiet PDF workspace with keyboard navigation and reference portals",
+  "scripts": {
+    "prepare:assets": "node scripts/assets.mjs",
+    "build:core": "node scripts/build-core.mjs",
+    "dev": "npm run prepare:assets && npm run build:core && vite --host 127.0.0.1",
+    "build": "npm run prepare:assets && npm run build:core && tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node scripts/test-core.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "dependencies": {
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "fflate": "^0.8.3",
+    "pdf-lib": "^1.17.1",
+    "typescript": "~5.9.3",
+    "vite": "8.3.4"
+  }
+}
