@@ -34,7 +34,7 @@ Cloudflare authentication was expired during the initial local build; renewal re
 
 ## GitHub
 
-The repository stays private at `ArnabCodes/paperterm` to preserve history and existing links. The product, visible UI, package names and distribution page are Pipit. A private GitHub prerelease can hold the same three archives/checksums; public downloads are served from Cloudflare rather than private GitHub asset URLs. Store listings and public repository visibility are not authorized by this change.
+The repository stays private at `ArnabCodes/paperterm` to preserve history and existing links. The product, visible UI, package names and distribution page are Pipit. [Pipit Alpha 01](https://github.com/ArnabCodes/paperterm/releases/tag/v0.8.0-alpha.1) is published as a private prerelease at commit `6381798`; all three downloaded GitHub artifacts were independently checked against the release manifest hashes. Public downloads will be served from Cloudflare rather than private GitHub asset URLs. Store listings and public repository visibility are not authorized by this change.
 
 ## Known alpha gaps
 
