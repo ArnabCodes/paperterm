@@ -5,7 +5,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 
 const base = new URL(process.argv[2] || 'https://pipit-reader.pages.dev');
 if (base.protocol !== 'https:') throw new Error('Public deployment checks require HTTPS');
-const expected = JSON.parse(readFileSync('docs/releases/0.8.0-alpha.1.json', 'utf8'));
+const expected = JSON.parse(readFileSync(process.argv[3] || 'site-dist/release.json', 'utf8'));
 const output = `output/playwright/public-${Date.now()}`;
 mkdirSync(output, { recursive: true });
 const records = [];
@@ -17,7 +17,7 @@ async function get(path) {
   return response;
 }
 const home = await get('/');
-verify((await home.text()).includes('Pipit — follow the idea.'), 'Public homepage is Pipit');
+verify((await home.text()).includes('Pipit — PDF reader for research papers.'), 'Public homepage describes Pipit as a research PDF reader');
 verify(home.headers.get('content-security-policy')?.includes("script-src 'self'"), 'Homepage CSP is present');
 verify(home.headers.get('x-content-type-options') === 'nosniff', 'MIME sniffing is disabled');
 const release = await (await get('/release.json')).json();
@@ -49,5 +49,5 @@ for (const path of ['/.git/config', '/.env', '/reader/manifest.json']) {
 }
 const result = { checkedAt: new Date().toISOString(), base: base.href, passed: checks, downloads: records, output };
 writeFileSync(`${output}/verification.json`, JSON.stringify(result, null, 2));
-writeFileSync('output/playwright/v080-public-downloads.json', JSON.stringify(result, null, 2));
+writeFileSync(`output/playwright/v${expected.version.replaceAll('.', '')}-public-downloads.json`, JSON.stringify(result, null, 2));
 console.log(JSON.stringify(result, null, 2));

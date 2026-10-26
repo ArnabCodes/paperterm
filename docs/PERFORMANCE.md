@@ -1,5 +1,11 @@
 # Scrolling performance
 
+## Local reader consolidation check — 2026-10-21
+
+Final post-polish runs also retain p95 16.8 ms in all three runs, with 2/2/2 frames over 34 ms, zero Long Tasks, and page 14 reached every time. The old reader build is retained under `output/playwright/refinement-baseline-reader`; the local website has subsequently been rebuilt with the current reader.
+
+The dock/lens/notebook refinement was compared against the preceding local `site-dist/reader` using cached TraceMonkey (14 pages), headless Chromium 155 on Windows, 1440×960, DPR 1, Dracula, and three six-second scripted scrolls per build. P95 remains 16.8 ms in every run. Before: frames over 34 ms = 2/1/2; Long Tasks = 2/0/0, totaling 259/0/0 ms. After: frames over 34 ms = 2/2/1; no Long Tasks. All runs reached page 14. Logs: `output/playwright/refinement-performance-before.txt` and `refinement-performance-after.txt`; final post-polish rerun: `refinement-performance-final.txt`. This is workload-specific non-regression evidence, not a cross-reader ranking. The new dock animates transforms/opacity without a width-measurement animation loop. Full-height preview-column rasters remain bounded to approximately eight million pixels; see [UX review](UX-REVIEW.md) for limits.
+
 ## Measured result: 0.5.1 → 0.5.2
 
 Local Windows Chromium, 1440×960 viewport, cached Mozilla TraceMonkey research paper (14 pages), Dracula theme. Three six-second full-document scrolls per build, using the same Playwright session and script. This measures UI-thread responsiveness during rendering, not PDF correctness, total rendering throughput, or superiority over other readers.

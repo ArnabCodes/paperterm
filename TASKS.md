@@ -1,9 +1,19 @@
 # Pipit resumption dashboard
 
-Updated: 2026-10-19. Direction: minimal browser-first PDF workspace, replacing the Python terminal prototype. Repository must stay private.
+Updated: 2026-10-26. Direction: minimal browser-first PDF workspace. Repository stays private. 0.10.0 Alpha 03 is live on Cloudflare. Arnab subsequently authorized committing and pushing the current source to GitHub main. No GitHub release upload or store submission is included.
 
 | State | Task | Owner | Evidence / next step |
 | --- | --- | --- | --- |
+| Published | Gamified LaTeX tutor and website integration | Codex / Arnab | `:Tutor`, six-page paper, 10 missions / 300 XP, badges and local resume. Full Chromium journey and packaged Chromium/Firefox Tutor checks pass. 41 public download checks and direct PDF SHA-256. Deployment 6fa3c407; docs/TUTOR.md and docs/ALPHA.md |
+| Published | Customer-copy audit and mouse/keyboard demos | Codex / Arnab | Removed non-product troubleshooting and one-off development reports; consolidated all interactive demos with Mouse/Keyboard controls and corner keys. Deployment 9f227963; 36 live interaction, 16 docs and 41 public download checks |
+| Published | Searchable user documentation | Codex / Arnab | /docs/: 10 topics, 8 generated keyboard sections, local search, mobile layout and no-JavaScript reading. 16 live browser and 41 public download checks; deployment a6e6450b |
+| Published | Clear feature explanations instead of slogans | Codex / Arnab | Eight feature groups, shortcuts, current FAQ and explicit limitations. Website-only deployment 9e5e3216; 17 live feature-copy and 41 public download checks |
+| Published | Website-builder polish and text-cursor audit | Codex / Arnab | Sites workflow on existing Cloudflare checkout; pointer/input-caret distinctions, selection retained, hover/focus/readability/skip-link refinements. 14 live targeted and 41 download checks; deployment 7b8efa62. Browser F7 caret-browsing remains user-controlled |
+| Published | Original browser icons and visual reinspection | Codex / Arnab | 26 October 2026: vendor Chrome/Firefox/Safari artwork, aligned 40px boxes, five viewport widths, 19 live icon/layout checks and 41 public download checks. Website-only deployment d532f765; extension packages unchanged |
+| Published | Publisher and institutional PDF discovery | Codex / Arnab | Selected-paper DOI/landing-page lookup, subscriber metadata, toolbar handoff and access recovery. Real ScienceDirect challenge remains unverified |
+| Published | Keyboard-first internal file browser | Codex / Arnab | Local-first three columns, Downloads/Documents picker locations, remembered Chromium handle and explicit permission recovery; 13 release browser checks |
+| Published | Two-sided dock, reference lens, citation explorer and notebook portability | Codex / Arnab | Included in 0.9.0 Alpha 02; historical feature audits retain their original local-review evidence |
+| Published | Feature-first website and 0.9.0 packages | Codex / Arnab | Cloudflare deployment f0ffad11; 41 public HTTPS checks, 37 public browser checks, all three package hashes verified. See docs/ALPHA.md |
 | Done | Replace terminal implementation with web reader | Codex | PDF.js rendering and TypeScript UI; no Python runtime dependency |
 | Done | Rust WASM reference lookup | Codex | Five Rust unit tests; browser equation, citation, figure and smart-hint checks |
 | Done | Chrome default-viewer integration | Codex | Isolated Chromium profile: MIME redirect, query/hash preservation, inline attachment PDFs, explicit downloads, HTML exclusion |

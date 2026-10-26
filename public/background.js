@@ -1,4 +1,4 @@
-import { installContextMenu } from './extension-policy.js';
+import { installContextMenu, isDownloadBypass } from './extension-policy.js';
 const viewer = chrome.runtime.getURL('index.html');
 installContextMenu(chrome);
 
@@ -17,5 +17,5 @@ async function registerRules() {
 
 chrome.runtime.onInstalled.addListener(() => registerRules().catch(console.error));
 chrome.runtime.onStartup.addListener(() => registerRules().catch(console.error));
-chrome.action.onClicked.addListener(() => chrome.tabs.create({ url: viewer }));
+chrome.action.onClicked.addListener(tab => chrome.tabs.create({ url: tab.url && /^https?:/i.test(tab.url) && !isDownloadBypass(tab.url) ? `${viewer}?article=${encodeURIComponent(tab.url)}` : viewer }));
 registerRules().catch(console.error);

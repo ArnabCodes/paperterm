@@ -3,7 +3,8 @@ async (page) => {
   const checks = [];
   const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message); };
   await page.goto('http://127.0.0.1:4180/paper?first=one&second=two#page=3');
-  await page.waitForFunction(() => document.querySelector('#page-total').textContent === '6' && document.querySelector('#loading').hidden);
+  await page.waitForURL('chrome-extension://**');
+  await page.waitForFunction(() => document.querySelector('#page-total')?.textContent === '6' && document.querySelector('#loading')?.hidden);
   assert(page.url().startsWith('chrome-extension://'), 'PDF MIME redirects even without a .pdf suffix');
   assert(page.url().includes('first=one&second=two'), 'Source query parameters survive interception');
   assert(await page.locator('#page-current').textContent() === '3', 'PDF page fragment survives interception');
@@ -11,7 +12,7 @@ async (page) => {
   await page.getByRole('combobox', { name: 'Find a citation', exact: true }).fill('Bush');
   await page.getByRole('option').first().waitFor();
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Reference [1]', exact: true }).waitFor();
+  await page.waitForFunction(label => document.querySelector('#portal-title')?.textContent === label && !document.querySelector('#portal')?.hidden, "Reference [1]");
   assert(await page.locator('#portal-page').innerText() === 'Page 6', 'Rust WASM lookup works under extension CSP');
   await page.goto('http://127.0.0.1:4180/html.pdf');
   await page.getByRole('heading', { name: 'Not a PDF', exact: true }).waitFor();

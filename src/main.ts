@@ -16,8 +16,31 @@ import { element, escapeHtml as esc, type ReferenceHit, type ReferenceKind, type
 import { initializeNotebook } from './notebook';
 import { buildDocumentMap } from './research';
 import { initializeResearch } from './research-panel';
+import { initializeFieldMap } from './field-panel';
+import './field.css';
+import './dock.css';
+import { initializeDock } from './dock';
+import { suggestPaperQuery } from './citation-network';
+import { initializeFileBrowser } from './file-browser';
+import { discoverPublisherPdfs, publisherPage } from './publisher-pdf';
+import { initializeTutor } from './tutor';
 
 element('#app').innerHTML = shell();
+const openFileBrowser = initializeFileBrowser((blob, name) => openDocument(blob, name));
+const previewMenu = document.createElement('div');
+previewMenu.className = 'preview-context'; previewMenu.popover = 'auto';
+previewMenu.innerHTML = '<button data-action="portal-jump">Follow passage · Enter</button><button data-action="pin-portal">Pin / unpin · Shift P</button><button data-action="preview-page">Content / full page · g P</button><button data-action="close-portal">Close · Escape</button>';
+document.body.append(previewMenu);
+function openPreviewMenu(xpos: number, ypos: number) {
+  previewMenu.style.inset = 'auto'; previewMenu.style.margin = '0';
+  previewMenu.style.left = `${Math.max(8, Math.min(innerWidth - 270, xpos))}px`;
+  previewMenu.style.top = `${Math.max(8, Math.min(innerHeight - 200, ypos))}px`;
+  previewMenu.showPopover(); previewMenu.querySelector('button')!.focus();
+}
+element('#portal-scroll').addEventListener('contextmenu', event => { event.preventDefault(); openPreviewMenu(event.clientX, event.clientY); });
+element('#portal-scroll').addEventListener('keydown', event => { if (event.shiftKey && event.key === 'F10') { event.preventDefault(); openPreviewMenu(innerWidth / 2, innerHeight / 2); } });
+previewMenu.addEventListener('click', () => previewMenu.hidePopover());
+previewMenu.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); previewMenu.hidePopover(); element('#portal-scroll').focus(); } });
 let preferences = loadPreferences();
 const reader = new Reader(element<HTMLDivElement>('#viewer-container'), preferences);
 const engine = new ReferenceEngine();
@@ -38,6 +61,7 @@ let previewItems: PreviewTarget[] = [];
 let previewIndex = -1;
 let previewPinned = false;
 let previewZoom = 1;
+let previewFullPage = false;
 let documentMap = buildDocumentMap([]);
 const research = initializeResearch({
   map: () => documentMap,
@@ -48,9 +72,29 @@ const research = initializeResearch({
   jump: (page, ypos) => { closePortal(); goTo(page, ypos); },
   toast,
 });
-function openResearch(label?: string) { research.open(label); }
+const fieldMap = initializeFieldMap({ show: showDialog, local: () => research.open(), documentId: () => fingerprint, doi: async () => {
+  const pdf = reader.document;
+  if (!pdf) return '';
+  const text = await (await pdf.getPage(1)).getTextContent();
+  if (pdf !== reader.document) return '';
+  const value = text.items.flatMap(item => 'str' in item ? [item.str] : []).join(' ').slice(0, 20000);
+  const matches = [...new Set([...value.matchAll(/\b10\.\d{4,9}\/[^\s<>"\]]+/gi)].map(match => match[0].replace(/[.,;:)]+$/, '')))];
+  return matches.length === 1 ? matches[0] : '';
+}, suggestion: async () => {
+  const pdf = reader.document;
+  if (!pdf) return '';
+  const metadata = await pdf.getMetadata().catch(() => null);
+  if (pdf !== reader.document) return '';
+  const title = (metadata?.info as { Title?: string } | undefined)?.Title;
+  const first = await pdf.getPage(1);
+  const viewport = first.getViewport({ scale: 1 });
+  const content = await first.getTextContent();
+  if (pdf !== reader.document) return '';
+  return suggestPaperQuery(title, fileName, content.items.flatMap(item => 'str' in item ? [{ text: item.str, size: item.height, x: item.transform[4] / viewport.width, y: viewport.convertToViewportPoint(item.transform[4], item.transform[5])[1] / viewport.height }] : []));
+} });
+function openResearch(label?: string) { if (label) research.open(label); else void fieldMap.open(); }
 const notebook = initializeNotebook({
-  getDocument: () => reader.document && !opening && fingerprint ? { id: fingerprint, name: fileName, page: reader.viewer.currentPageNumber, offset: reader.offset } : null,
+  getDocument: () => reader.document && !opening && fingerprint ? { id: fingerprint, name: fileName, page: reader.viewer.currentPageNumber, offset: reader.offset, pageCount: reader.document.numPages } : null,
   goTo,
   toast,
 });
@@ -71,6 +115,30 @@ let hintPrefix = '';
 let hintScrollTop = 0;
 let hintScrollLeft = 0;
 let selectedPdfText = '';
+function tutorSavedNotes() {
+  const notes = readStored<unknown>(`paperterm.notebook.v1:${fingerprint}`, []);
+  return Array.isArray(notes) ? notes.filter(note => note && typeof note === 'object' && ((typeof note.note === 'string' && note.note.trim()) || (typeof note.excerpt === 'string' && note.excerpt.trim()))).length : 0;
+}
+const tutor = initializeTutor({
+  open: async () => {
+    await openDocument(new URL('tutor.pdf', document.baseURI).href, 'The Coherence Atlas.pdf');
+    const sequence = loadSequence;
+    for (let attempt = 0; attempt < 300 && !indexed && sequence === loadSequence && reader.document; attempt++) await new Promise(resolve => setTimeout(resolve, 100));
+    if (sequence === loadSequence && reader.document) { reader.viewer.spreadMode = 0; reader.viewer.pagesRotation = 0; reader.viewer.currentScaleValue = 'auto'; reader.goTo(1); }
+  },
+  snapshot: () => ({
+    ready: !!reader.document && !opening && indexed && fileName === 'The Coherence Atlas.pdf',
+    page: reader.viewer.currentPageNumber,
+    query: element<HTMLInputElement>('#find-input').value,
+    matches: Number(/of\s+(\d+)/.exec(element('#find-count').textContent || '')?.[1] || 0),
+    preview: !!portalTarget && !element('#portal').hidden && element<HTMLCanvasElement>('#portal-canvas').width > 0,
+    previewPage: portalTarget?.page || 0, pinned: previewPinned, theme: preferences.theme,
+    bookmarked: state.bookmarks.some(mark => mark.page === reader.viewer.currentPageNumber),
+    notes: tutorSavedNotes(),
+    ruler: !element('#reading-ruler').hidden, spread: reader.viewer.spreadMode,
+  }),
+  jump: page => goTo(page), command: () => openPalette('commands'), focus: () => reader.container.focus(),
+});
 
 function toast(message: string) {
   clearTimeout(toastTimer);
@@ -94,7 +162,7 @@ function pushHistory() {
   if (!reader.document) return;
   const current = reader.location;
   const last = backward.at(-1);
-  if (!last || last.page !== current.page || Math.abs(last.top - current.top) > 5) backward.push(current);
+  if (!last || last.page !== current.page || Math.abs(last.top - current.top) > 5 || Math.abs(last.left - current.left) > 5 || last.zoom !== current.zoom || last.rotation !== current.rotation) backward.push(current);
   if (backward.length > 100) backward.shift();
   forward.length = 0;
 }
@@ -107,16 +175,20 @@ function historyMove(back: boolean) {
   if (!target) { toast(back ? 'You are at the beginning of your reading trail.' : 'No forward position yet.'); return; }
   (back ? forward : backward).push(reader.location);
   reader.restore(target); saveState();
+  if (back) tutor.returned();
 }
 
-async function openDocument(source: string | File | Blob, name = 'document.pdf', libraryId?: string) {
+async function openDocument(source: string | File | Blob, name = 'document.pdf', libraryId?: string, resolvePublisher = false) {
+  tutor.documentChanging();
+  const originalSource = typeof source === 'string' ? source : '';
+  document.querySelector('#publisher-recovery')?.remove();
   collapseControls();
   clearTimeout(toastTimer); element('#toast').hidden = true;
   const sequence = ++loadSequence;
   saveState();
   opening = true; indexed = false; hasText = false;
   selectedPdfText = '';
-  documentMap = buildDocumentMap([]); notebook.reset(); research.reset();
+  documentMap = buildDocumentMap([]); notebook.reset(); research.reset(); fieldMap.reset();
   backward.length = forward.length = 0;
   engine.index([]);
   closePortal(); closeHints(); closeFind();
@@ -130,6 +202,12 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
   try {
     if (typeof source === 'string') {
       validatePdfSource(source);
+      if (resolvePublisher || publisherPage(source)) {
+        element('#loading-label').textContent = 'Finding the publisher’s PDF…';
+        const links = await discoverPublisherPdfs(source);
+        source = links[0].url;
+        if (name === 'document.pdf' || !/\.pdf$/i.test(name)) name = 'Publisher paper.pdf';
+      }
     }
     const bytes = typeof source === 'string' ? source : new Uint8Array(await source.arrayBuffer());
     if (sequence !== loadSequence) return;
@@ -175,8 +253,17 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
     element('#document-detail').textContent = 'A little less interface. A little more focus.';
     document.title = 'Pipit — a quiet PDF workspace';
     element('#exit-focus').hidden = true;
-    const detail = typeof source === 'string' && source.startsWith('file:') ? ' Local-file URL permissions vary by browser; press o to choose the file instead.' : typeof source === 'string' && /^https?:/.test(source) ? ' The standalone app needs a CORS-enabled URL. Download the PDF and open it locally if access is denied.' : '';
+    const detail = typeof source === 'string' && source.startsWith('file:') ? ' Local-file URL permissions vary by browser; press o to choose the file instead.' : typeof source === 'string' && /^https?:/.test(source) ? (isExtensionPage() ? ' Check Pipit’s site access. Institutional sign-in, cookies, or publisher access checks may require opening the publisher’s own PDF link first.' : ' The standalone app needs a CORS-enabled URL; use the extension for publisher links or open a local PDF.') : '';
     toast(`Could not open this PDF. ${error instanceof Error ? error.message : String(error)}${detail}`);
+    if (/^https?:/.test(originalSource)) {
+      const recovery = document.createElement('p');
+      recovery.id = 'publisher-recovery'; recovery.setAttribute('role', 'status');
+      const message = document.createElement('span');
+      message.textContent = `${error instanceof Error ? error.message : 'Could not open this PDF.'} `;
+      const link = document.createElement('a');
+      link.href = originalSource; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Open publisher / source page ↗';
+      recovery.append(message, link); element('#welcome').append(recovery);
+    }
   } finally {
     if (sequence === loadSequence) element('#loading').hidden = true;
   }
@@ -232,13 +319,17 @@ function bookmark() {
 }
 
 function closePortal() {
+  if (previewMenu.matches(':popover-open')) previewMenu.hidePopover();
   const wasPinned = previewPinned;
   clearTimeout(previewRenderTimer);
   reader.cancelPreview(); element('#portal').hidden = true; element('#preview-backdrop').hidden = true; element('#reading-stage').inert = false; document.body.classList.remove('has-portal'); portalTarget = null;
-  previewItems = []; previewIndex = -1; previewPinned = false; previewZoom = 1;
+  previewItems = []; previewIndex = -1; previewPinned = false; previewZoom = 1; previewFullPage = false;
   if (wasPinned) resizeViewer();
 }
 async function showPortal(target: PreviewTarget, items?: PreviewTarget[], navigating = false) {
+  const needsFocus = portalTarget !== target || element('#portal').hidden;
+  if (needsFocus) element('#portal').dataset.opening = 'true';
+  if (portalTarget !== target) previewFullPage = false;
   if (items) { previewItems = items; previewIndex = Math.max(0, items.findIndex(item => item.page === target.page && item.y === target.y)); }
   else if (!navigating) { previewItems = [...previewItems.slice(0, previewIndex + 1), target].slice(-50); previewIndex = previewItems.length - 1; }
   portalTarget = target;
@@ -248,9 +339,10 @@ async function showPortal(target: PreviewTarget, items?: PreviewTarget[], naviga
   element('#reading-stage').inert = !previewPinned;
   element<HTMLButtonElement>('[data-action="pin-portal"]').setAttribute('aria-pressed', String(previewPinned));
   element('#portal-title').textContent = target.label;
+  element('#portal').setAttribute('aria-label', `${target.label}, page ${target.page}. Escape closes, Enter follows, Shift P pins. Right-click for preview commands.`);
   element('#portal-page').textContent = `Page ${target.page}`;
   sizePreview();
-  await renderPreview(true);
+  await renderPreview(needsFocus);
 }
 let previewRenderTimer: ReturnType<typeof setTimeout>;
 function schedulePreview() {
@@ -269,14 +361,19 @@ async function renderPreview(focus = false) {
   element('#portal').setAttribute('aria-busy', 'true');
   try {
     const canvas = element<HTMLCanvasElement>('#portal-canvas');
-    const rendered = await reader.preview(target, canvas, previewZoom);
+    const scroll = element('#portal-scroll');
+    const positionAtTarget = focus || element('#portal').dataset.opening === 'true';
+    const previousPosition = canvas.clientHeight ? (scroll.scrollTop + scroll.clientHeight / 2) / canvas.clientHeight : 0;
+    const rendered = await reader.preview(target, canvas, previewZoom, previewFullPage);
     if (!rendered || portalTarget !== target) return;
     element('#portal').setAttribute('aria-busy', 'false');
-    const scroll = element('#portal-scroll');
-    scroll.scrollTop = Math.max(0, canvas.clientHeight * target.y - scroll.clientHeight * .42);
+    const crop = JSON.parse(canvas.dataset.crop || '{}');
+    if (!previewPinned && crop.cropped) element('#portal').style.setProperty('--preview-height', `${Math.max(90, Math.min(innerHeight * .88, canvas.clientHeight * crop.height))}px`);
+    scroll.scrollTop = !positionAtTarget ? Math.max(0, canvas.clientHeight * previousPosition - scroll.clientHeight / 2) : crop.cropped && crop.height < .8 ? canvas.clientHeight * crop.y : Math.max(0, canvas.clientHeight * Number(canvas.dataset.targetY || target.y) - scroll.clientHeight * .42);
     scroll.scrollLeft = Math.max(0, (canvas.clientWidth - scroll.clientWidth) / 2);
     element('#portal-location').style.top = `${canvas.clientHeight * target.y + 8}px`;
-    if (focus) scroll.focus({ preventScroll: true });
+    delete element('#portal').dataset.opening;
+    if (positionAtTarget && document.activeElement !== resizer) scroll.focus({ preventScroll: true });
   } catch (error) { fail(error); }
 }
 function movePreview(direction: number) {
@@ -367,6 +464,7 @@ element('#find-input').addEventListener('input', () => { reader.find(element<HTM
 element('#find-input').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); findNext(event.shiftKey); } });
 
 const commands = [
+  { title: 'Tutor', detail: 'Start or resume a guided PDF expedition with missions, hints and local progress', key: ':Tutor', action: 'tutor', global: true },
   { title: 'All commands', detail: 'Search every action, setting, and reading theme', key: ':', action: 'commands', global: true },
   { title: 'Show reading dock', detail: 'Reveal controls and move keyboard focus to the dock', key: 'F6', action: 'dock' },
   { title: 'Zoom in', detail: 'Increase the PDF magnification', key: '+', action: 'zoom-in' },
@@ -380,7 +478,7 @@ const commands = [
   { title: 'Clear local document copies', detail: 'Remove cached PDFs from the recent library', key: '', action: 'clear-library', global: true },
   { title: 'Close reference preview', detail: 'Return to the main reading view', key: '', action: 'close-portal' },
   { title: 'Open PDF from URL', detail: 'Read a web PDF directly, without saving a file first', key: 'g o', action: 'url', global: true },
-  { title: 'Open a PDF', detail: 'Choose a document from your computer', key: 'o', action: 'open', global: true },
+  { title: 'Open a PDF', detail: 'Browse local folders and recent papers · arrows / h j k l · / filter', key: 'o', action: 'open', global: true },
   { title: 'Open recent document', detail: 'Your locally saved reading library', key: 'Shift O', action: 'recent', global: true },
   { title: 'Explore the field guide', detail: 'A real PDF to try the reader', key: '', action: 'demo', global: true },
   { title: 'Find in document', detail: 'Search selectable text', key: '/', action: 'search' },
@@ -393,8 +491,12 @@ const commands = [
   { title: 'Jump to previewed passage', detail: 'Follow the preview and keep a return point', key: '', action: 'portal-jump' },
   { title: 'Previous preview result', detail: 'Inspect the previous lookup result', key: 'Alt ↑', action: 'portal-back' },
   { title: 'Next preview result', detail: 'Inspect the next lookup result', key: 'Alt ↓', action: 'portal-forward' },
+  { title: 'Previous preview page', detail: 'Browse the paper independently inside the lens', key: 'Alt PageUp', action: 'preview-previous-page' },
+  { title: 'Next preview page', detail: 'Continue to the next page without moving the main document', key: 'Alt PageDown', action: 'preview-next-page' },
   { title: 'Show preview citation mentions', detail: 'Find passages that cite the previewed bibliography entry', key: '', action: 'portal-backlinks' },
-  { title: 'Citation graph and backlinks', detail: 'Explore bibliography entries and the pages that cite them', key: 'g c', action: 'graph' },
+  { title: 'Field citation map', detail: 'Search OpenAlex for references, citing papers and related work; confirm before fetching', key: 'g c', action: 'graph' },
+  { title: 'Local reference backlinks', detail: 'Within-PDF bibliography entries and citing passages; no network', key: '', action: 'local-graph' },
+  { title: 'Toggle full-page preview', detail: 'Switch between detected content/column and the complete source page', key: '', action: 'preview-page' },
   { title: 'Capture selected passage', detail: 'Save a quote with its page and your notes on this device', key: 'q', action: 'capture' },
   { title: 'Research notebook', detail: 'Review saved passages, add notes, jump back, or export Markdown', key: 'Shift Q', action: 'notebook' },
   { title: 'Next equation', detail: 'Jump to the next equation definition', key: 'g e', action: 'next-equation' },
@@ -405,8 +507,7 @@ const commands = [
   { title: 'Search selected text in Google Scholar', detail: 'Opens a new tab; sends only your selected text to Google Scholar', key: '', action: 'scholar' },
   { title: 'Go to page', detail: 'Jump to a page number; or type a number in the command menu', key: 'p', action: 'page' },
   { title: 'Follow a link', detail: 'Type the hint shown over a visible PDF link', key: 'f', action: 'links' },
-  { title: 'Preview a linked reference', detail: 'Keep your reading position in a split view', key: 'Shift F', action: 'preview-links' },
-  { title: 'Smart reference hints', detail: 'Label visible equation and citation numbers, even without PDF links', key: 's', action: 'smart-hints' },
+  { title: 'Reference lens', detail: 'Peek at visible equations, figures, tables, citations and internal links; scroll for surrounding context', key: 'Shift F', action: 'preview-links' },
   { title: 'Document contents', detail: 'Show the embedded outline', key: 't', action: 'sidebar' },
   { title: 'Bookmark this page', detail: 'Toggle a bookmark at the current page', key: 'b', action: 'bookmark' },
   { title: 'Show bookmarks', detail: 'Return to your reading trail', key: 'Shift B', action: 'bookmarks' },
@@ -426,6 +527,19 @@ const commands = [
   { title: 'Keyboard guide', detail: 'A shortcut to everywhere', key: '?', action: 'help', global: true },
   ...themes.map(theme => ({ title: `Theme: ${theme.name}`, detail: `${theme.mode === 'light' ? 'Light' : 'Dark'} reading palette`, key: '', action: `theme:${theme.id}`, global: true })),
 ].map(command => ({ ...command, global: 'global' in command && command.global, key: leaderKeys[command.action] || ({ 'close-portal': 'Escape', 'portal-jump': 'Enter', open: 'o / Ctrl O', help: '? / F1', commands: ': / Ctrl K' } as Record<string, string>)[command.action] || command.key }));
+
+function actionAvailable(action: string) {
+  if (action === 'history-back') return backward.length > 0;
+  if (action === 'history-forward') return forward.length > 0;
+  if (action === 'portal-back') return previewIndex > 0;
+  if (action === 'portal-forward') return previewIndex + 1 < previewItems.length;
+  if (action === 'preview-previous-page') return !!portalTarget && portalTarget.page > 1;
+  if (action === 'preview-next-page') return !!portalTarget && portalTarget.page < (reader.document?.numPages || 0);
+  if (action === 'portal-backlinks') return !!portalTarget?.citation;
+  if (['portal-jump', 'pin-portal', 'close-portal', 'preview-page'].includes(action)) return !!portalTarget;
+  return true;
+}
+initializeDock(commands, runAction, actionAvailable);
 
 function showDialog(id: string) {
   if (id === '#help-dialog') { element<HTMLInputElement>('#help-filter').value = ''; renderShortcutGuide(); }
@@ -462,7 +576,7 @@ async function computeChoices() {
   const terms = query.toLowerCase().split(/\s+/);
   try {
     if (paletteMode === 'commands') {
-      choices = commands.filter(command => (reader.document || command.global) && terms.every(term => `${command.title} ${command.detail}`.toLowerCase().includes(term))).map(command => ({ ...command, action: () => runAction(command.action) }));
+      choices = commands.filter(command => (reader.document || command.global) && actionAvailable(command.action) && terms.every(term => `${command.title} ${command.detail}`.toLowerCase().includes(term))).map(command => ({ ...command, action: () => runAction(command.action) }));
       const page = Number(query);
       if (/^\d+$/.test(query) && reader.document && page >= 1 && page <= reader.document.numPages) choices.unshift({ title: `Go to page ${page}`, detail: 'Your reading trail is preserved', action: () => goTo(page) });
     } else if (paletteMode === 'url') {
@@ -551,7 +665,7 @@ async function download() {
 }
 
 function previewForHit(hit: ReferenceHit): PreviewTarget {
-  return { page: hit.page, y: hit.y, x: hit.kind === 'equation' ? undefined : hit.x, label: hit.kind === 'equation' ? `Equation (${hit.label})` : hit.kind === 'citation' ? `Reference [${hit.label}]` : hit.label, citation: hit.kind === 'citation' ? hit.label : undefined };
+  return { page: hit.page, y: hit.y, x: hit.x, label: hit.kind === 'equation' ? `Equation (${hit.label})` : hit.kind === 'citation' ? `Reference [${hit.label}]` : hit.label, citation: hit.kind === 'citation' ? hit.label : undefined };
 }
 const referencePattern = /\(((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*[a-z]?)\)|\[(\d+)(?:\s*[,–-]\s*\d+)*\]|(?:Eq(?:uation)?s?\.?|Fig(?:ure)?s?\.?|Table)\s*\(?((?:[A-Z]\.?)?\d+(?:\.\d+)*)\)?/gi;
 function referenceQuery(text: string): { query: string; kind: ReferenceKind } | null {
@@ -611,16 +725,19 @@ async function nextSection(direction: number) {
 
 function runAction(action: string) {
   if (action.startsWith('theme:')) { chooseTheme(action.slice(6)); return; }
-  const global = ['open', 'url', 'demo', 'commands', 'settings', 'help', 'close-dialog', 'cancel-password', 'reset-theme', 'add-color', 'theme', 'recent', 'clear-library', 'glass', 'recolor', 'background', 'foreground', 'palette-settings'];
+  const global = ['open', 'url', 'demo', 'tutor', 'commands', 'settings', 'help', 'close-dialog', 'cancel-password', 'reset-theme', 'add-color', 'theme', 'recent', 'clear-library', 'glass', 'recolor', 'background', 'foreground', 'palette-settings'];
   if ((!reader.document || opening) && !global.includes(action)) { toast('Open a PDF to use this command.'); return; }
   switch (action) {
-    case 'open': element<HTMLInputElement>('#file-input').click(); break;
+    case 'tutor': tutor.open(); break;
+    case 'open': void openFileBrowser(); break;
     case 'demo': void openDocument(new URL('sample.pdf', document.baseURI).href, 'The art of following an idea.pdf'); break;
     case 'commands': case 'url': case 'page': case 'equation': case 'citation': case 'figure': case 'recent': case 'contents': openPalette(action); break;
     case 'peek-selection': case 'jump-selection': void followReference(selectedReference(), action === 'jump-selection').catch(fail); break;
     case 'next-equation': case 'previous-equation': void nextEquation(action === 'next-equation' ? 1 : -1).catch(fail); break;
     case 'next-section': case 'previous-section': void nextSection(action === 'next-section' ? 1 : -1).catch(fail); break;
     case 'graph': openResearch(); break;
+    case 'local-graph': research.open(); break;
+    case 'preview-page': if (portalTarget) { previewFullPage = !previewFullPage; sizePreview(); void renderPreview(); } break;
     case 'portal-backlinks': if (portalTarget?.citation) openResearch(portalTarget.citation); else toast('Preview a bibliography entry to see its mentions.'); break;
     case 'capture': notebook.capture(); break;
     case 'notebook': notebook.open(); break;
@@ -655,6 +772,13 @@ function runAction(action: string) {
     case 'pin-portal': pinPreview(); break;
     case 'portal-back': movePreview(-1); break;
     case 'portal-forward': movePreview(1); break;
+    case 'preview-next-page': case 'preview-previous-page': {
+      if (!portalTarget || !reader.document) break;
+      const page = portalTarget.page + (action === 'preview-next-page' ? 1 : -1);
+      if (page < 1 || page > reader.document.numPages) { toast('No further page in this direction.'); break; }
+      void showPortal({ page, y: 0, x: portalTarget.x, label: `Page ${page} context` });
+      break;
+    }
     case 'portal-jump': if (portalTarget) { const target = portalTarget; closePortal(); goTo(target.page, target.y); reader.container.focus(); } break;
     case 'settings': renderMappings(); showDialog('#settings-dialog'); break;
     case 'glass': preferences.glass = !preferences.glass; applyPreferences(); break;
@@ -667,8 +791,7 @@ function runAction(action: string) {
     case 'reset-theme': preferences = structuredClone(defaults); applyPreferences(); renderMappings(); break;
     case 'add-color': if (preferences.palette.length < 12) { preferences.palette.push({ from: '#0000ff', to: '#5a8a76' }); renderMappings(); applyPreferences(); } break;
     case 'links': showHints(false); break;
-    case 'preview-links': showHints(true); break;
-    case 'smart-hints': showSmartHints(); break;
+    case 'preview-links': case 'smart-hints': showSmartHints(); break;
     case 'cancel-password': finishPassword(null); break;
     case 'clear-library': if (window.confirm('Clear locally saved PDF copies? Original files, notes, and bookmarks are not deleted.')) void clearBooks().then(() => { toast('Local document copies cleared.'); return renderRecent(); }).catch(fail); break;
   }
@@ -682,7 +805,7 @@ async function previewLink(anchor: HTMLAnchorElement, jump = false) {
   const page = await reader.document.getPage(Number(pageElement.dataset.pageNumber));
   const annotations = await page.getAnnotations();
   const annotation = annotations.find(item => item.id === section.dataset.annotationId);
-  if (!annotation?.dest) { toast('This is an external link. Use F to open it in a new tab.'); return; }
+  if (!annotation?.dest) { toast('External links are not loaded in the lens. Use f to follow the link.'); return; }
   const target = await reader.resolveDestination(annotation.dest);
   if (target) { if (jump) goTo(target.page, target.y); else void showPortal({ ...target, label: 'Linked passage' }); }
 }
@@ -747,17 +870,24 @@ function showSmartHints() {
   hintScrollTop = reader.container.scrollTop; hintScrollLeft = reader.container.scrollLeft;
   const bounds = reader.container.getBoundingClientRect();
   const stage = element('#reading-stage').getBoundingClientRect();
-  const candidates: { box: DOMRect; query: string; kind: ReferenceKind }[] = [];
+  const candidates: { box: DOMRect; action: () => void }[] = [];
+  const sequence = loadSequence;
   for (const span of reader.container.querySelectorAll<HTMLElement>('.textLayer span')) {
     const text = span.firstChild;
     if (!text || text.nodeType !== Node.TEXT_NODE) continue;
-    const pattern = /\(((?:[A-Z]\.?)?\d+(?:[.\-]\d+)*[a-z]?)\)|\[(\d+)\]|(?:Fig\.?|Figure|Table)\s+(\d+(?:\.\d+)*)/g;
-    for (const match of span.textContent!.matchAll(pattern)) {
+    for (const match of span.textContent!.matchAll(referencePattern)) {
       const range = document.createRange(); range.setStart(text, match.index!); range.setEnd(text, match.index! + match[0].length);
       const box = range.getBoundingClientRect();
       if (box.bottom < bounds.top || box.top > bounds.bottom || box.right < bounds.left || box.left > bounds.right) continue;
-      candidates.push({ box, query: match[1] || match[2] || match[3], kind: match[1] ? 'equation' : match[2] ? 'citation' : 'figure' });
+      candidates.push({ box, action: () => { if (sequence === loadSequence) void followReference(match[0]).catch(fail); } });
     }
+  }
+  for (const anchor of reader.container.querySelectorAll<HTMLAnchorElement>('.annotationLayer a[href]')) {
+    const box = anchor.getBoundingClientRect();
+    if (!box.width || !box.height || box.bottom < bounds.top || box.top > bounds.bottom || box.right < bounds.left || box.left > bounds.right) continue;
+    if (candidates.some(candidate => candidate.box.left < box.right && candidate.box.right > box.left && candidate.box.top < box.bottom && candidate.box.bottom > box.top)) continue;
+    if (!anchor.classList.contains('internalLink')) continue;
+    candidates.push({ box, action: () => { if (sequence === loadSequence) void previewLink(anchor).catch(fail); } });
   }
   const alphabet = 'asdfghjklqwertyuiopzxcvbnm';
   candidates.slice(0, alphabet.length ** 2).forEach((candidate, index) => {
@@ -765,14 +895,9 @@ function showSmartHints() {
     const button = document.createElement('span'); button.className = 'link-hint'; button.textContent = label;
     button.style.left = `${candidate.box.left - stage.left}px`; button.style.top = `${candidate.box.top - stage.top}px`;
     element('#link-hints').append(button);
-    hints.push({ label, button, action: () => {
-      void engine.lookup(candidate.query, candidate.kind).then(hits => {
-        if (!hits.length) { toast('No definition found for this reference. Try a manual lookup.'); return; }
-        void showPortal(previewForHit(hits[0]), hits.map(previewForHit));
-      }).catch(fail);
-    } });
+    hints.push({ label, button, action: candidate.action });
   });
-  toast(hints.length ? 'Type a hint to peek at the reference. Escape cancels.' : 'No equation numbers or numeric citations are visible. Try E or C.');
+  toast(hints.length ? 'Type a hint to peek. Scroll inside for context; Enter follows. Escape cancels.' : 'No references visible here. Try e, c, or v for a manual lookup.');
 }
 reader.container.addEventListener('scroll', () => {
   if (hints.length && (reader.container.scrollTop !== hintScrollTop || reader.container.scrollLeft !== hintScrollLeft)) closeHints();
@@ -838,7 +963,7 @@ document.addEventListener('keydown', event => {
   }
   if (document.querySelector('dialog[open]')) return;
   if (event.key === 'Tab' && portalTarget && !previewPinned) {
-    const controls = [...element('#portal').querySelectorAll<HTMLElement>('button:not([disabled]), #portal-scroll')];
+    const controls = [...element('#portal').querySelectorAll<HTMLElement>('button:not([disabled]), #portal-scroll')].filter(control => control.getClientRects().length);
     const index = controls.indexOf(document.activeElement as HTMLElement);
     if (index < 0 || (!event.shiftKey && index === controls.length - 1) || (event.shiftKey && index === 0)) {
       event.preventDefault(); controls[event.shiftKey ? controls.length - 1 : 0].focus(); return;
@@ -873,14 +998,15 @@ document.addEventListener('keydown', event => {
   }
   if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key) && reader.document) { event.preventDefault(); historyMove(event.key === 'ArrowLeft'); return; }
   if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key) && portalTarget) { event.preventDefault(); movePreview(event.key === 'ArrowUp' ? -1 : 1); return; }
+  if (event.altKey && ['PageUp', 'PageDown'].includes(event.key) && portalTarget) { event.preventDefault(); runAction(event.key === 'PageUp' ? 'preview-previous-page' : 'preview-next-page'); return; }
   if (event.key === 'Enter' && portalTarget && target.closest('#portal')) { event.preventDefault(); runAction('portal-jump'); return; }
   if (modifier || event.altKey) return;
-  if (['d', 'u'].includes(event.key) && reader.document) { event.preventDefault(); reader.container.scrollBy({ top: reader.container.clientHeight * (event.key === 'd' ? .5 : -.5), behavior: 'instant' }); return; }
+  if (['d', 'u'].includes(event.key) && reader.document) { event.preventDefault(); const container = (portalTarget && !previewPinned) || target.closest('#portal') ? element('#portal-scroll') : reader.container; container.scrollBy({ top: container.clientHeight * (event.key === 'd' ? .5 : -.5), behavior: 'instant' }); return; }
   const actions: Record<string, string> = { o: 'open', O: 'recent', '?': 'help', ',': 'settings', '/': 'search', ':': 'commands', p: 'page', P: 'pin-portal', e: 'equation', c: 'citation', v: 'figure', q: 'capture', Q: 'notebook', t: 'sidebar', b: 'bookmark', B: 'bookmarks', z: 'focus', r: 'ruler', R: 'rotate', w: 'fit-width', W: 'smart-width', a: 'fit-page', f: 'links', F: 'preview-links', s: 'smart-hints', '+': 'zoom-in', '=': 'zoom-in', '-': 'zoom-out' };
   if (actions[event.key]) { event.preventDefault(); runAction(actions[event.key]); return; }
   if (event.key === 'g') { event.preventDefault(); startPrefix('g'); return; }
   if (!reader.document) return;
-  const scrollContainer = target.closest('#portal') ? element('#portal-scroll') : reader.container;
+  const scrollContainer = (portalTarget && !previewPinned) || target.closest('#portal') ? element('#portal-scroll') : reader.container;
   if (['j', 'k', 'h', 'l', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', ' ', 'PageDown', 'PageUp'].includes(event.key)) {
     event.preventDefault();
     const down = ['j', 'ArrowDown'].includes(event.key), up = ['k', 'ArrowUp'].includes(event.key);
@@ -928,7 +1054,9 @@ initializeChrome();
 applyPreferences();
 void renderRecent();
 const parameters = new URLSearchParams(location.search);
-if (parameters.has('demo')) runAction('demo');
+if (parameters.has('tutor')) runAction('tutor');
+else if (parameters.has('demo')) runAction('demo');
+else if (parameters.has('article')) void openDocument(parameters.get('article')!, 'Publisher paper.pdf', undefined, true);
 else if (location.search.startsWith('?source=')) {
   const raw = location.search.slice('?source='.length);
   let name = 'document.pdf';

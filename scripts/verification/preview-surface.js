@@ -22,17 +22,17 @@ async (page) => {
     const top = await page.locator('#viewer-container').evaluate(node => node.scrollTop);
     await open();
     let box = await geometry();
-    assert(Math.abs(box.ratio - box.expected) < .005 && Math.abs(box.centerX) < 1 && Math.abs(box.centerY) < 1, 'Preview is centered and matches the live app aspect ratio');
-    assert(await preview.getByRole('button').count() === 2 && await page.locator('.portal-footer, .portal-tip').count() === 0, 'Preview shows only its title, page, pin, and close controls');
+    assert(Math.abs(box.centerX) < 1 && Math.abs(box.centerY) < 1, 'Content preview stays centered');
+    assert(await page.locator('.portal-heading').isHidden() && await page.locator('.portal-footer, .portal-tip').count() === 0, 'Preview displays only PDF content without header or footer controls');
     const mainScale = parseFloat(await page.locator('#zoom-value').textContent()) / 100;
     const scale = Number(await page.locator('#portal-canvas').getAttribute('data-document-scale'));
-    assert(scale <= mainScale * .96 && await page.locator('#portal-scroll').evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'Preview scale remains at or below document zoom and shows the entire line width');
+    assert(scale > 0 && await page.locator('#portal-scroll').evaluate(node => node.scrollWidth <= node.clientWidth + 1), 'Content preview fits the complete detected width');
     assert((await page.locator('#viewer-container').boundingBox()).width === main.width && await page.locator('#viewer-container').evaluate(node => node.scrollTop) === top, 'Opening a preview preserves the main document geometry and reading position');
     await page.screenshot({ path: 'output/playwright/v05-centered-preview.png', animations: 'disabled' });
     await page.setViewportSize({ width: 1200, height: 700 });
     await page.waitForFunction(() => {
       const box = document.querySelector('#portal').getBoundingClientRect();
-      return Math.abs(box.width / box.height - innerWidth / innerHeight) < .005;
+      return box.width <= innerWidth && document.querySelector('#portal').getAttribute('aria-busy') === 'false';
     });
     box = await geometry();
     assert(Math.abs(box.centerX) < 1 && Math.abs(box.centerY) < 1, 'Window resizing updates preview proportions and keeps it centered');
@@ -42,6 +42,7 @@ async (page) => {
     assert(await handle.isVisible(), 'Pinned preview exposes an accessible resize handle');
     await page.waitForFunction(() => document.querySelector('#portal').getAnimations().every(animation => animation.playState === 'finished'));
     await handle.focus(); await page.keyboard.press('Home');
+    await page.waitForFunction(() => Math.abs(document.querySelector('#portal').clientWidth - Number(document.querySelector('#portal-resizer').getAttribute('aria-valuenow'))) < 1);
     const before = await preview.boundingBox();
     const handleBox = await handle.boundingBox();
     await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
@@ -50,7 +51,10 @@ async (page) => {
     assert((await preview.boundingBox()).width > before.width + 90, 'Dragging the separator resizes the side preview');
     const width = (await preview.boundingBox()).width;
     await handle.focus(); await page.keyboard.press('ArrowRight');
-    assert(Math.abs((await preview.boundingBox()).width - (width - 32)) < 1, 'Side preview width can also be adjusted with arrow keys');
+    await page.waitForFunction(width => Math.abs(document.querySelector('#portal').clientWidth - (width - 32)) < 1, width);
+    const resized = await preview.boundingBox();
+    const resizeState = await handle.evaluate(node => ({ value: node.getAttribute('aria-valuenow'), focus: document.activeElement.id, minimum: node.getAttribute('aria-valuemin') }));
+    assert(Math.abs(resized.width - (width - 32)) < 1, `Side preview width can also be adjusted with arrow keys (${JSON.stringify({ width, resized: resized.width, ...resizeState })})`);
     const savedWidth = (await preview.boundingBox()).width;
     assert(Math.abs(await page.evaluate(() => JSON.parse(localStorage.getItem('paperterm.preview-width'))) - savedWidth) < 1, 'User-selected side preview width is saved locally');
     await page.keyboard.press('End');
@@ -58,24 +62,27 @@ async (page) => {
     await page.keyboard.press('P'); await ready();
     await page.waitForFunction(() => document.querySelector('#portal').getAnimations().every(animation => animation.playState === 'finished'));
     box = await geometry();
-    assert(Math.abs(box.ratio - box.expected) < .005 && Math.abs(box.centerX) < 1, 'Unpinning restores the centered proportional preview');
+    assert(Math.abs(box.centerX) < 1, 'Unpinning restores the centered content preview');
     await page.keyboard.press('Escape');
     await page.setViewportSize({ width: 390, height: 844 });
     await open();
     await page.waitForFunction(() => document.querySelector('#portal').getAnimations().every(animation => animation.playState === 'finished'));
     box = await geometry();
-    assert(Math.abs(box.ratio - box.expected) < .005 && box.left >= 0 && box.right <= 390, 'Portrait preview keeps the app aspect ratio without overflowing');
+    assert(box.left >= 0 && box.right <= 390, 'Portrait content preview stays within the viewport');
     await page.screenshot({ path: 'output/playwright/v05-portrait-preview.png', animations: 'disabled' });
     await page.keyboard.press('Escape'); await page.setViewportSize({ width: 1440, height: 960 });
     await page.mouse.move(700, 300); await page.keyboard.press('Escape');
     const dock = await page.locator('#reader-toolbar').evaluate(node => ({ background: getComputedStyle(node).backgroundColor, blur: getComputedStyle(node).backdropFilter, opacity: getComputedStyle(node).opacity }));
     assert(dock.background.includes('0.24') && dock.blur.includes('28px') && dock.opacity === '1', 'Resting dock has 24 percent background opacity and continuous backdrop blur');
-    assert(await page.locator('#reader-toolbar').getAttribute('data-motion') === 'spring', 'Dock expansion uses a continuous spring animation');
+    assert(['anchored', 'reduced'].includes(await page.locator('#reader-toolbar').getAttribute('data-motion')), 'Dock keeps core targets anchored while tools fan out');
     await page.keyboard.press(',');
     await page.getByRole('checkbox', { name: 'Frosted panels', exact: true }).uncheck();
     await page.keyboard.press('Escape');
     assert(await page.locator('#reader-toolbar').evaluate(node => getComputedStyle(node).backdropFilter.includes('blur')), 'Dock remains blurred when other panels use solid surfaces');
     await page.keyboard.press(','); await page.getByRole('checkbox', { name: 'Frosted panels', exact: true }).check(); await page.keyboard.press('Escape');
     return { passed: checks.length, checks };
-  } catch (error) { throw new Error(`After ${checks.length} checks (${checks.at(-1)}): ${error.message}`); }
+  } catch (error) {
+    const diagnostic = await preview.evaluate(node => ({ width: node.clientWidth, busy: node.getAttribute('aria-busy'), focus: document.activeElement.id, handle: document.querySelector('#portal-resizer').getAttribute('aria-valuenow'), animations: node.getAnimations().map(animation => ({ state: animation.playState, time: animation.currentTime })) }));
+    throw new Error(`After ${checks.length} checks (${checks.at(-1)}): ${error.message}; ${JSON.stringify(diagnostic)}`);
+  }
 }

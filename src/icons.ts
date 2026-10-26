@@ -1,4 +1,12 @@
 const paths: Record<string, string> = {
+  palette: '<circle cx="12" cy="12" r="9"/><path d="M21 12h-5a3 3 0 0 0-3 3v6"/><path d="M7 10h.01M10 6h.01M16 7h.01M7 15h.01"/>',
+  lens: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M7 8h10M7 12h4M7 16h7"/><circle cx="16" cy="13" r="3"/>',
+  spread: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 4v16M6 8h2M16 8h2"/>',
+  rotate: '<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
+  layers: '<path d="m12 3 10 5-10 5L2 8Zm-10 9 10 5 10-5M2 16l10 5 10-5"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
+  trash: '<path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7"/>',
+  keyboard: '<rect x="2" y="5" width="20" height="14" rx="3"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 13h.01M18 13h.01M9 15h6"/>',
   menu: '<rect width="18" height="18" x="3" y="3" rx="2" /><path d="M9 3v18" />',
   search: '<circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />',
   command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3" />',

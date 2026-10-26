@@ -1,5 +1,5 @@
 #help-dialog { width: min(1400px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); padding: 24px; overflow: hidden; background: color-mix(in srgb, var(--raised) 87%, transparent); backdrop-filter: blur(28px) saturate(135%); border: 0; }
-#help-dialog[open] { display: flex; flex-direction: column; gap: 18px; }
+#help-dialog[open] { display: flex; flex-direction: column; gap: 14px; }
 #help-dialog .dialog-heading { margin: 0; flex-shrink: 0; align-items: center; }
 #help-dialog h2 { font: 550 23px/1.25 Inter, sans-serif; margin: 6px 0 0; letter-spacing: -.5px; }
 .help-tools { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
@@ -10,7 +10,7 @@
 #help-dialog .help-group { min-width: 0; }
 #help-dialog .help-group h3 { font: 600 12px/1.4 Inter, sans-serif; color: var(--accent); margin: 0 0 10px; letter-spacing: .2px; }
 #help-dialog dl { margin: 0; }
-#help-dialog dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 0; font-size: 11.5px; line-height: 1.45; }
+#help-dialog dl > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; font-size: 11.5px; line-height: 1.45; }
 #help-dialog dt { min-width: 0; }
 #help-dialog dd { margin: 0; text-align: right; }
 #help-dialog kbd { font-size: 10.5px; padding: 2px 4px; white-space: normal; overflow-wrap: anywhere; background: color-mix(in srgb, var(--ink) 5%, transparent); border: 0; box-shadow: none; }

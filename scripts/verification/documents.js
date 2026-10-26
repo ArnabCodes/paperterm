@@ -7,7 +7,7 @@ async (page) => {
   await page.keyboard.press('s');
   assert(await page.locator('.link-hint').count() >= 2, 'Smart hints identify unlinked equation and citation text');
   await page.keyboard.press('a');
-  await page.getByRole('heading', { name: 'Equation (2)', exact: true }).waitFor();
+  await page.waitForFunction(label => document.querySelector('#portal-title')?.textContent === label && !document.querySelector('#portal')?.hidden, "Equation (2)");
   assert(await page.locator('#portal-page').innerText() === 'Page 3', 'Smart hint opens Rust-resolved equation definition');
   await page.keyboard.press('Escape');
   await page.locator('#file-input').setInputFiles('output/playwright/fixtures/tracemonkey.pdf');

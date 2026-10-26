@@ -87,12 +87,32 @@ await check('Safari toolbar checks MIME using HEAD and opens the same reader', a
   globalThis.fetch = async (url, options) => { fetches.push(options); return new Response(null, { headers: { 'content-type': 'application/pdf' } }); };
   await callbacks.action({ url: details.url }); assert.equal(fetches[0].method, 'HEAD'); assert.equal(fetches[0].credentials, 'include'); assert.equal(opened.at(-1), `safari-web-extension://own/index.html?source=${details.url}`);
 });
-await check('Safari never guesses PDF from a misleading filename', async () => {
+await check('Safari sends HTML to article discovery rather than guessing PDF from a filename', async () => {
   globalThis.fetch = async () => new Response(null, { headers: { 'content-type': 'text/html' } });
-  await callbacks.action({ url: 'https://example.org/html.pdf' }); assert.equal(opened.at(-1), 'safari-web-extension://own/index.html');
+  await callbacks.action({ url: 'https://example.org/html.pdf' }); assert.equal(opened.at(-1), 'safari-web-extension://own/index.html?article=https%3A%2F%2Fexample.org%2Fhtml.pdf');
 });
 await check('Safari link context menu provides explicit handoff without interception', () => {
   callbacks.context({ menuItemId: 'paperterm-open-link', linkUrl: details.url }); assert.equal(opened.at(-1), `safari-web-extension://own/index.html?source=${details.url}`);
 });
 globalThis.fetch = nativeFetch; delete globalThis.browser;
+for (const target of ['chrome', 'firefox']) await check(`${target} toolbar hands off article URLs and respects explicit downloads`, async () => {
+  let action;
+  const urls = [];
+  const api = {
+    runtime: { getURL: file => `${target === 'chrome' ? 'chrome' : 'moz'}-extension://own/${file}`, onInstalled: { addListener() {} }, onStartup: { addListener() {} } },
+    action: { onClicked: { addListener(listener) { action = listener; } } },
+    contextMenus: { onClicked: { addListener() {} } },
+    tabs: { create: async ({ url }) => { urls.push(url); } },
+    declarativeNetRequest: { updateDynamicRules: async () => {} },
+    webRequest: { onHeadersReceived: { addListener() {} } },
+  };
+  globalThis[target === 'chrome' ? 'chrome' : 'browser'] = api;
+  const file = target === 'chrome' ? '../../public/background.js' : '../../extension/firefox.js';
+  const background = readFileSync(new URL(file, import.meta.url), 'utf8').replace("'./extension-policy.js'", JSON.stringify(policy));
+  await import(`data:text/javascript;base64,${Buffer.from(background).toString('base64')}`);
+  const article = 'https://www.sciencedirect.com/science/article/pii/S0016236109004967?via%3Dihub';
+  await action({ url: article }); assert.equal(new URL(urls.at(-1)).searchParams.get('article'), article);
+  await action({ url: `${article}&pipit-download=1` }); assert.ok(!urls.at(-1).includes('?'));
+  delete globalThis.chrome; delete globalThis.browser;
+});
 console.log(`${passed} platform checks passed.`);

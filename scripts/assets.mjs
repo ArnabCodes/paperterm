@@ -80,7 +80,7 @@ for (let index = 0; index < 3; index++) {
   if (index < 2) text(pages[3], '>', xpos + 143, 383, 15, mono, green);
 }
 text(pages[3], 'Figure 1. The reading loop: context stays within reach.', 76, 312, 12, italic);
-y = paragraph(pages[3], 'Press v to look up figure captions. Press f to label the links on the visible pages, then type the hint to follow one. Shift+f opens an internal link in the preview pane. The same actions are available from the command palette.', 269);
+y = paragraph(pages[3], 'Press v to look up figure captions. Press f to follow an embedded link. Shift+f labels equations, citations, figures, tables, and internal links for one reference lens. Scroll inside for context; Enter follows the passage. The same actions are in the command palette.', 269);
 text(pages[4], '5. Make room for focus', 76, 673, 29, roman);
 y = paragraph(pages[4], 'Paper, Sepia, Night, and twenty terminal-inspired themes change the workspace and document colors. Open Reading settings to choose your own colors, preserve the original PDF, or map source colors to a replacement palette.', 624);
 y = paragraph(pages[4], 'Hover over the compact dock to expand its tools. Press z for focus mode and z again to return. Ctrl+scroll changes the PDF size. Press r for a reading ruler and use the bracket keys to move it. Select a passage and press q to keep it in your notebook.', y);

@@ -1,15 +1,15 @@
 import { icon } from './icons';
 import { readStored, saveStored } from './preferences';
 import { escapeHtml } from './types';
+import { mergeNotebookEntries, notebookSidecar, parseNotebookSidecar, notebookLimits, type NotebookEntry } from './annotation-sidecar';
 
-interface NotebookDocument { id: string; name: string; page: number; offset: number }
+interface NotebookDocument { id: string; name: string; page: number; offset: number; pageCount?: number }
 export interface NotebookHooks {
   getDocument(): NotebookDocument | null;
   goTo(page: number, offset?: number): void;
   toast(message: string): void;
 }
 export interface NotebookController { open(): void; capture(): void; reset(): void; rememberSelection(): void }
-interface NotebookEntry { id: string; excerpt: string; page: number; offset: number; note: string }
 
 const entryLimit = 200;
 const excerptLimit = 8000;
@@ -46,6 +46,7 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
   dialog.innerHTML = `<section class="notebook-shell">
     <header class="notebook-header"><div class="notebook-heading"><span class="notebook-eyebrow">${icon('note')} Research notebook</span><h2 class="notebook-title"></h2><p class="notebook-subtitle">Excerpts and thoughts, saved only on this device.</p></div><button type="button" class="notebook-close" aria-label="Close notebook">${icon('close')}</button></header>
     <div class="notebook-toolbar"><button type="button" class="notebook-add">${icon('note')} Add text note</button><button type="button" class="notebook-export">${icon('export')} Export Markdown</button><span class="notebook-count"></span></div>
+    <details class="notebook-portable"><summary>History &amp; portable backup</summary><div><button type="button" class="notebook-undo">${icon('back')} Undo</button><button type="button" class="notebook-redo">${icon('next')} Redo</button><button type="button" class="notebook-backup">${icon('download')} Save backup</button><button type="button" class="notebook-import">${icon('open')} Import backup</button></div><p>Local sidecar notes and excerpts, not PDF-embedded annotations. Import into the same PDF fingerprint on another browser. Undo history lasts until you change documents.</p></details><input class="notebook-import-file" type="file" accept="application/json,.json" hidden>
     <p class="notebook-status" role="status" hidden></p><div class="notebook-list"></div>
     <footer class="notebook-footer">Local to this browser · Notes save as you type · Esc to close</footer>
   </section>`;
@@ -56,16 +57,25 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
   const status = dialog.querySelector<HTMLElement>('.notebook-status')!;
   const addButton = dialog.querySelector<HTMLButtonElement>('.notebook-add')!;
   const exportButton = dialog.querySelector<HTMLButtonElement>('.notebook-export')!;
+  const undoButton = dialog.querySelector<HTMLButtonElement>('.notebook-undo')!;
+  const redoButton = dialog.querySelector<HTMLButtonElement>('.notebook-redo')!;
+  const backupButton = dialog.querySelector<HTMLButtonElement>('.notebook-backup')!;
+  const importFile = dialog.querySelector<HTMLInputElement>('.notebook-import-file')!;
   addButton.title = 'Add text note (Ctrl/Cmd+Enter)';
   exportButton.title = 'Export Markdown (Ctrl/Cmd+S)';
   dialog.addEventListener('keydown', event => {
     if (!(event.ctrlKey || event.metaKey)) return;
+    if (!(event.target instanceof HTMLTextAreaElement) && ['z', 'y'].includes(event.key.toLowerCase())) { event.preventDefault(); restoreEntries(event.shiftKey || event.key.toLowerCase() === 'y'); return; }
     if (event.key.toLowerCase() === 's') { event.preventDefault(); exportButton.click(); }
     else if (event.key === 'Enter') { event.preventDefault(); addButton.click(); }
   });
   let activeDocument: NotebookDocument | null = null;
   let entries: NotebookEntry[] = [];
   let dirty = false;
+  let undo: NotebookEntry[][] = [];
+  let redo: NotebookEntry[][] = [];
+  let lastEdit = '';
+  let lastEditTime = 0;
   let cachedSelection: { documentId: string; location: Pick<NotebookEntry, 'excerpt' | 'page' | 'offset'> } | null = null;
 
   function rememberSelection() {
@@ -94,6 +104,9 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
     count.textContent = `${entries.length} / ${entryLimit}`;
     addButton.disabled = entries.length >= entryLimit;
     exportButton.disabled = !entries.length;
+    backupButton.disabled = !entries.length;
+    undoButton.disabled = !undo.length;
+    redoButton.disabled = !redo.length;
     list.innerHTML = entries.length ? entries.map(entry => `<article class="notebook-card" data-entry="${escapeHtml(entry.id)}">
       <div class="notebook-card-header"><button type="button" class="notebook-jump" data-jump="${escapeHtml(entry.id)}" aria-label="Jump to page ${entry.page}">Page ${entry.page} ${icon('arrow')}</button><button type="button" class="notebook-delete" data-delete="${escapeHtml(entry.id)}" aria-label="Delete note from page ${entry.page}">Delete</button></div>
       ${entry.excerpt ? `<blockquote class="notebook-excerpt">${icon('quote')}<span class="notebook-excerpt-text">${escapeHtml(entry.excerpt)}</span></blockquote>` : ''}
@@ -101,12 +114,32 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
     </article>`).join('') : `<div class="notebook-empty">${icon('note')}<h3 class="notebook-empty-title">Keep what matters.</h3><p class="notebook-empty-text">Select text in the PDF to capture an excerpt, or add a text note at your current reading position.</p></div>`;
   }
 
+  function checkpoint() {
+    undo.push(structuredClone(entries));
+    if (undo.length > 40) undo.shift();
+    redo = []; lastEdit = '';
+  }
+  function restoreEntries(forward: boolean) {
+    if (!isCurrentDocument()) return;
+    const source = forward ? redo : undo;
+    const target = source.pop();
+    if (!target) return;
+    (forward ? undo : redo).push(structuredClone(entries));
+    entries = target; lastEdit = ''; persist(); render();
+    const button = forward ? redoButton : undoButton;
+    (button.disabled ? addButton : button).focus({ preventScroll: true });
+    hooks.toast(forward ? 'Notebook change restored.' : 'Notebook change undone.');
+  }
+  undoButton.addEventListener('click', () => restoreEntries(false));
+  redoButton.addEventListener('click', () => restoreEntries(true));
+
   function reset() {
     cachedSelection = null;
     if (dirty) persist(true);
     if (dialog.open) dialog.close();
     activeDocument = null;
     entries = [];
+    undo = []; redo = []; lastEdit = '';
     dirty = false;
     status.hidden = true;
     status.textContent = '';
@@ -145,6 +178,7 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
   function addEntry(location: Pick<NotebookEntry, 'excerpt' | 'page' | 'offset'>): string | null {
     if (entries.length >= entryLimit) { hooks.toast(`Notebook limit reached (${entryLimit} notes per document). Export or delete notes first.`); return null; }
     const entry: NotebookEntry = { id: crypto.randomUUID(), ...location, excerpt: location.excerpt.slice(0, excerptLimit), note: '' };
+    checkpoint();
     entries.push(entry);
     persist();
     render();
@@ -194,8 +228,11 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
     if (!(textarea instanceof HTMLTextAreaElement) || !isCurrentDocument()) return;
     const entry = entries.find(candidate => candidate.id === textarea.dataset.note);
     if (!entry) return;
+    if (lastEdit !== entry.id || performance.now() - lastEditTime > 800) checkpoint();
+    lastEdit = entry.id; lastEditTime = performance.now();
     entry.note = textarea.value.slice(0, noteLimit);
     persist();
+    undoButton.disabled = !undo.length; redoButton.disabled = !redo.length;
   });
   list.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button') : null;
@@ -208,6 +245,7 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
       dialog.close();
       hooks.goTo(entry.page, entry.offset);
     } else if (button.dataset.delete !== undefined) {
+      checkpoint();
       entries.splice(index, 1);
       persist();
       render();
@@ -215,6 +253,34 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
       (nextButton ?? addButton).focus({ preventScroll: true });
     }
   });
+  function downloadBackup(text: string) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const anchor = document.createElement('a');
+    anchor.href = url; anchor.download = 'pipit-notebook.json'; anchor.hidden = true;
+    document.body.append(anchor);
+    try { anchor.click(); } finally { anchor.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  backupButton.addEventListener('click', () => {
+    if (isCurrentDocument() && activeDocument) downloadBackup(notebookSidecar({ id: activeDocument.id, name: activeDocument.name }, entries));
+  });
+  dialog.querySelector('.notebook-import')!.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', () => { void (async () => {
+    const file = importFile.files?.[0]; importFile.value = '';
+    if (!file || !isCurrentDocument() || !activeDocument) return;
+    const expected = activeDocument.id;
+    try {
+      if (file.size > notebookLimits.bytes) throw new Error('Notebook backup exceeds 8 MiB.');
+      const text = await file.text();
+      if (activeDocument?.id !== expected || hooks.getDocument()?.id !== expected) throw new Error('The document changed. Import the backup again.');
+      const incoming = parseNotebookSidecar(text, expected, hooks.getDocument()?.pageCount);
+      const merged = mergeNotebookEntries(entries, incoming);
+      if (merged.length === entries.length) { hooks.toast('These notes are already in your notebook.'); return; }
+      const added = merged.length - entries.length;
+      checkpoint(); entries = merged; persist(); render();
+      hooks.toast(`Imported ${added} backup notes. Existing notes were preserved.`);
+    } catch (error) { hooks.toast(error instanceof Error ? error.message : 'Could not import notebook backup.'); }
+  })(); });
   exportButton.addEventListener('click', () => {
     if (!isCurrentDocument() || !activeDocument || !entries.length) return;
     const heading = markdownText(activeDocument.name.replace(/[\r\n]+/g, ' '));

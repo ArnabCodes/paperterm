@@ -18,6 +18,11 @@ assert.ok(!existsSync('site-dist/reader/manifest.json') && !existsSync('site-dis
 for (const path of ['assets/pip.png', 'assets/mark.svg', 'assets/InterVariable.woff2', 'assets/OFL.txt', '404.html', 'privacy.html', 'release-notes.html', 'licenses.html', 'reader/core.wasm']) assert.ok(existsSync(`site-dist/${path}`)); checks++;
 assert.ok(WebAssembly.validate(readFileSync('site-dist/reader/core.wasm'))); checks++;
 const html = readFileSync('site-dist/index.html', 'utf8');
+for (const name of ['chrome.svg', 'firefox.svg', 'safari.png']) {
+  assert.ok(existsSync(`site-dist/assets/${name}`));
+  assert.ok(html.includes(`src="/assets/${name}"`));
+  checks++;
+}
 for (const item of Object.values(release.downloads)) assert.ok(html.includes(`href="${item.url}" download=`)); checks++;
 assert.match(html, /JavaScript is disabled/); checks++;
 assert.doesNotMatch(html, /https?:\/\/[^"\s]+\.(?:js|css)/); checks++;

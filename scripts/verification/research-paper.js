@@ -9,7 +9,7 @@ async (page) => {
   const listener = request => { if (/^https?:/.test(request.url()) && !request.url().startsWith('http://127.0.0.1:4173/')) unexpected.push(request.url()); };
   page.on('request', listener);
   try {
-    await page.keyboard.press('g'); await page.keyboard.press('c');
+    await page.keyboard.press('g'); await page.keyboard.press('L');
     await page.getByRole('dialog', { name: 'Citation graph', exact: true }).waitFor();
     assert((await page.locator('#research-summary').textContent()).startsWith('19 bibliography entries'), 'Two-column research paper exposes all 19 bibliography entries');
     const labels = await page.locator('.reference-card').evaluateAll(nodes => nodes.slice(0, 19).map(node => node.dataset.reference));

@@ -15,7 +15,7 @@ async (page) => {
   });
   assert(layout.columns === 4 && layout.width > 1200 && layout.height < layout.maxHeight && layout.overflow < 10, 'Desktop guide fits all eight sections into a wide four-column layout', layout);
   assert(await guide.locator('.help-group').count() === 8 && await guide.locator('dl > div').count() > 60, 'Guide groups the full shortcut collection into eight sections');
-  assert(layout.background.includes('0.87') && layout.blur.includes('28px'), 'Keyboard guide has a lightly translucent blurred surface', layout);
+  assert(layout.background.includes('0.24') && layout.blur.includes('28px'), 'Keyboard guide shares the dock glass surface without fading text', layout);
   const filter = page.getByRole('searchbox', { name: 'Filter keyboard shortcuts', exact: true });
   await filter.fill('two-page');
   assert(await guide.locator('dl > div').count() === 1 && await guide.locator('kbd').filter({ hasText: 'g 2' }).count() >= 1, 'Action search finds the exact two-page shortcut');
@@ -35,7 +35,7 @@ async (page) => {
   assert(await page.locator('.pdfViewer .spread').count() > 0, 'g 2 enables real PDF.js two-page spreads');
   await leader('2'); assert(await page.locator('.pdfViewer .spread').count() === 0, 'g 2 returns to single-page view');
   const glass = await page.locator('html').getAttribute('data-glass'); await leader('l'); await page.keyboard.press('F1');
-  assert(await guide.evaluate(node => getComputedStyle(node).backdropFilter) === (glass === 'false' ? 'blur(28px) saturate(1.35)' : 'none'), 'Guide honors the global transparency preference');
+  assert(await guide.evaluate(node => getComputedStyle(node).backdropFilter) === (glass === 'false' ? 'blur(28px) saturate(1.55)' : 'none'), 'Guide honors the global transparency preference');
   await page.keyboard.press('Escape'); await leader('l');
   const recolor = await page.evaluate(() => JSON.parse(localStorage.getItem('paperterm.preferences.v2')).recolor); await leader('r');
   assert(await page.evaluate(() => JSON.parse(localStorage.getItem('paperterm.preferences.v2')).recolor) === !recolor, 'g r toggles document recoloring'); await leader('r');

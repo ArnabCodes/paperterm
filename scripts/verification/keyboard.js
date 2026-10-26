@@ -2,6 +2,9 @@ async (page) => {
   const checks = [];
   try {
   page.setDefaultTimeout(8000);
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await page.goto(`http://127.0.0.1:4173/?demo=1&verify=keyboard&run=${Date.now()}#page=1`);
+  await page.waitForFunction(() => document.querySelector('#page-total')?.textContent === '6' && document.querySelector('#engine-status')?.textContent.includes('Ready'));
   const assert = (value, message) => { if (!value) throw new Error(message); checks.push(message); console.log('PASS ' + message); };
   const currentPage = () => page.locator('#page-current').textContent();
   const jump = async number => {
@@ -34,7 +37,7 @@ async (page) => {
   await page.getByRole('option').first().waitFor();
   const before = await currentPage();
   await page.keyboard.press('Enter');
-  await page.getByRole('heading', { name: 'Reference [1]', exact: true }).waitFor();
+  await page.waitForFunction(label => document.querySelector('#portal-title')?.textContent === label && !document.querySelector('#portal')?.hidden, "Reference [1]");
   await page.waitForFunction(() => document.querySelector('#portal').getAttribute('aria-busy') === 'false');
   assert(await page.locator('#portal-page').innerText() === 'Page 6', 'Rust citation lookup resolves bibliography page 6');
   assert(await currentPage() === before, 'Reference preview preserves main page');
@@ -67,9 +70,17 @@ async (page) => {
   assert((await currentPage()).startsWith('3'), 'Link hint follows embedded PDF destination');
   await page.keyboard.press('Alt+ArrowLeft');
   await page.waitForFunction(() => document.querySelector('#page-current').textContent === '1');
-  await page.keyboard.press('F'); await page.keyboard.press('s');
-  await page.getByRole('heading', { name: 'Linked passage', exact: true }).waitFor();
-  assert(await page.locator('#portal-page').innerText() === 'Page 6', 'Keyboard link preview opens bibliography');
+  await page.keyboard.press('F');
+  const referenceLabel = await page.evaluate(() => {
+    const span = [...document.querySelectorAll('.page[data-page-number="1"] .textLayer span')].find(node => node.textContent.includes('[1]'));
+    const range = document.createRange(), start = span.textContent.indexOf('[1]');
+    range.setStart(span.firstChild, start); range.setEnd(span.firstChild, start + 3);
+    const box = range.getBoundingClientRect();
+    return [...document.querySelectorAll('.link-hint')].sort((first, second) => { const left = first.getBoundingClientRect(), right = second.getBoundingClientRect(); return Math.hypot(left.left - box.left, left.top - box.top) - Math.hypot(right.left - box.left, right.top - box.top); })[0].textContent;
+  });
+  await page.keyboard.type(referenceLabel);
+  await page.waitForFunction(() => !document.querySelector('#portal')?.hidden && document.querySelector('#portal')?.getAttribute('aria-busy') === 'false');
+  assert(await page.locator('#portal-page').innerText() === 'Page 6', 'Unified reference lens opens the visible citation bibliography');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Control+k');
   await page.getByRole('combobox', { name: 'Find a command', exact: true }).fill('figure');
@@ -79,5 +90,5 @@ async (page) => {
   await page.keyboard.press('Enter');
   assert(await page.locator('#portal-page').innerText() === 'Page 4', 'Command palette and figure lookup reach figure 1');
   return { passed: checks.length, checks };
-  } catch (error) { throw new Error(`Completed ${checks.length} checks; last: ${checks.at(-1)}. ${error.message}`); }
+  } catch (error) { const state = await page.evaluate(() => ({ page: document.querySelector('#page-current')?.textContent, title: document.querySelector('#portal-title')?.textContent, previewHidden: document.querySelector('#portal')?.hidden, hints: document.querySelectorAll('.link-hint').length, toast: document.querySelector('#toast')?.textContent })); throw new Error(`Completed ${checks.length} checks; last: ${checks.at(-1)}. ${error.message} ${JSON.stringify(state)}`); }
 }

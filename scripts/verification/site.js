@@ -1,6 +1,7 @@
 async (page) => {
   const checks = [], errors = [], external = [];
   const base = new URL(page.url()).origin;
+  const release = await (await page.request.get(`${base}/release.json`)).json();
   const artifact = base.startsWith('https:') ? 'v080-public-site' : 'v080-site';
   const assert = (value, label) => { if (!value) throw new Error(label); checks.push(label); };
   page.on('pageerror', error => errors.push(String(error)));
@@ -16,18 +17,20 @@ async (page) => {
   assert((response.headers()['content-security-policy'] || '').includes("script-src 'self'"), 'Cloudflare headers apply a site CSP');
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Desktop has no horizontal overflow');
   await page.screenshot({ path: `output/playwright/${artifact}-desktop.png`, fullPage: true });
-  await page.locator('#peek-trigger').focus(); await page.keyboard.press('Enter');
-  assert(await page.locator('#demo-preview').isVisible(), 'Reference illustration works with the keyboard');
+  await page.locator('#tab-peek').click();
+  await page.locator('#stage-reference').focus(); await page.keyboard.press('Enter');
+  assert(await page.locator('#stage-portal').isVisible(), 'Reference illustration works with the keyboard');
   await page.keyboard.press('Escape');
-  assert(await page.locator('#demo-preview').isHidden() && await page.locator('#peek-trigger').evaluate(node => node === document.activeElement), 'Escape closes the preview and returns focus');
-  await page.getByRole('button', { name: 'Night', exact: true }).click();
-  assert(await page.locator('#theme-sample').getAttribute('data-theme') === 'night', 'Theme illustration changes to night');
-  await page.getByRole('button', { name: 'Paper', exact: true }).click();
-  assert(await page.locator('.theme-controls [aria-pressed="true"]').count() === 1, 'Theme buttons expose one selected state');
+  assert(await page.locator('#stage-portal').isHidden() && await page.locator('#stage-reference').evaluate(node => node === document.activeElement), 'Escape closes the preview and returns focus');
+  await page.locator('#tab-palette').click();
+  await page.locator('.stage-swatches').getByRole('button', { name: 'Night', exact: true }).click();
+  assert(await page.locator('.reader-stage').getAttribute('data-palette') === 'night', 'Theme illustration changes to night');
+  await page.locator('.stage-swatches').getByRole('button', { name: 'Paper', exact: true }).click();
+  assert(await page.locator('.stage-swatches [aria-pressed="true"]').count() === 1, 'Theme buttons expose one selected state');
   for (const target of ['chrome', 'firefox', 'safari']) {
     const link = page.locator(`[data-target="${target}"]`);
     const [download] = await Promise.all([page.waitForEvent('download'), link.click()]);
-    assert(download.suggestedFilename().startsWith('pipit-0.8.0-'), `${target} link downloads a real versioned artifact`);
+    assert(download.suggestedFilename().startsWith(`pipit-${release.version}-`), `${target} link downloads a real versioned artifact`);
     await download.saveAs(`output/playwright/${artifact}-download-${download.suggestedFilename()}`);
     const checksum = await page.request.get(new URL(await page.locator(`[data-checksum="${target}"]`).getAttribute('href'), base).href);
     assert(checksum.ok() && /^[a-f0-9]{64}  pipit-/.test(await checksum.text()), `${target} checksum is served`);
@@ -87,8 +90,8 @@ async (page) => {
     await tab.goto(base);
     await tab.waitForFunction(() => document.querySelector('#platform-note').textContent.includes('metadata could not be loaded'));
     assert((await tab.locator('[data-target="chrome"]').getAttribute('href')).startsWith('/downloads/'), 'Metadata failure does not disable build-verified download links');
-    await tab.locator('#peek-trigger').click();
-    assert(await tab.locator('#demo-preview').isVisible(), 'Metadata failure leaves page interactions usable');
+    await tab.locator('#tab-peek').click(); await tab.locator('#stage-reference').click();
+    assert(await tab.locator('#stage-portal').isVisible(), 'Metadata failure leaves page interactions usable');
   } finally { await offlineMetadata.close(); }
   return { passed: checks.length, checks };
 }

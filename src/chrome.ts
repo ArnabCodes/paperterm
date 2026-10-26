@@ -11,7 +11,7 @@ function reveal(id: string, visible: boolean) {
   const panel = element(id);
   if (id === '#reader-toolbar') {
     const more = element('.dock-more');
-    if (!visible && more.contains(document.activeElement)) element('#viewer-container').focus({ preventScroll: true });
+    if (!visible && (more.contains(document.activeElement) || document.querySelector('#dock-details')?.contains(document.activeElement))) element('#viewer-container').focus({ preventScroll: true });
     more.inert = !visible;
     more.setAttribute('aria-hidden', String(!visible));
     document.body.classList.toggle('dock-visible', visible);
@@ -60,14 +60,14 @@ export function initializeChrome() {
     if (event.pointerType === 'touch' || !document.body.classList.contains('has-document') || document.body.classList.contains('focus-mode') || document.querySelector('dialog[open]')) return;
     const sidebar = element('#sidebar'), dock = element('#reader-toolbar');
     const sidebarHot = event.clientX <= 14 || (document.body.classList.contains('sidebar-visible') && inside(sidebar, event.clientX, event.clientY));
-    const dockHot = inside(dock, event.clientX, event.clientY) || Boolean((event.target as Element).closest('#reader-toolbar')) || (event.clientY >= innerHeight - 30 && Math.abs(event.clientX - innerWidth / 2) <= Math.min(360, innerWidth / 2));
+    const dockHot = inside(dock, event.clientX, event.clientY) || Boolean((event.target as Element).closest('#reader-toolbar, #dock-details')) || (event.clientY >= innerHeight - 30 && Math.abs(event.clientX - innerWidth / 2) <= Math.min(360, innerWidth / 2));
     clearTimeout(sidebarTimer);
     if (sidebarHot) reveal('#sidebar', true);
     else if (!sidebarPinned) sidebarTimer = setTimeout(() => reveal('#sidebar', false), 350);
     if (dockHot) { clearTimeout(dockTimer); dockTimer = undefined; reveal('#reader-toolbar', true); dockMotion.setPointer(event.clientX); }
     else {
       dockMotion.setPointer(null);
-      if (!dockTimer && document.body.classList.contains('dock-visible')) dockTimer = setTimeout(() => { dockTimer = undefined; reveal('#reader-toolbar', false); }, 120);
+      if (!dockTimer && !dock.contains(document.activeElement) && !element('#dock-details').contains(document.activeElement) && document.body.classList.contains('dock-visible')) dockTimer = setTimeout(() => { dockTimer = undefined; reveal('#reader-toolbar', false); }, 420);
     }
   }, { passive: true });
   document.addEventListener('wheel', event => {
@@ -91,10 +91,10 @@ export function initializeChrome() {
     if (!sidebarPinned) reveal('#sidebar', false);
     reveal('#reader-toolbar', false);
   });
-  element('#reader-toolbar').addEventListener('focusin', () => {
+  for (const surface of [element('#reader-toolbar'), element('#dock-details')]) surface.addEventListener('focusin', () => {
     clearTimeout(dockTimer); dockTimer = undefined; reveal('#reader-toolbar', true);
   });
-  element('#reader-toolbar').addEventListener('focusout', event => {
-    if (!element('#reader-toolbar').contains(event.relatedTarget as Node)) { clearTimeout(dockTimer); dockTimer = setTimeout(() => { dockTimer = undefined; reveal('#reader-toolbar', false); }, 120); }
+  for (const surface of [element('#reader-toolbar'), element('#dock-details')]) surface.addEventListener('focusout', event => {
+    if (!element('#reader-toolbar').contains(event.relatedTarget as Node) && !element('#dock-details').contains(event.relatedTarget as Node)) { clearTimeout(dockTimer); dockTimer = setTimeout(() => { dockTimer = undefined; reveal('#reader-toolbar', false); }, 120); }
   });
 }

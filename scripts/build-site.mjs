@@ -3,6 +3,7 @@ import { resolve, join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import { unzipSync, strFromU8 } from 'fflate';
 import { pages } from '../site/content.mjs';
+import { buildDocs } from './build-docs.mjs';
 
 const root = resolve('.'), output = resolve('site-dist');
 if (dirname(output) !== root || output === root) throw new Error('Unsafe website output path');
@@ -10,7 +11,7 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 const built = JSON.parse(readFileSync('dist/manifest.json', 'utf8'));
 if (built.version !== version || !built.name.startsWith('Pipit')) throw new Error('Build Pipit before building the website');
 if (!existsSync('site/assets/pip.png')) throw new Error('The mascot artwork is missing');
-const release = { name: 'Pipit', version, channel: 'alpha', release: 'Alpha 01', downloads: {} };
+const release = { name: 'Pipit', version, channel: 'alpha', release: 'Alpha 03', downloads: {} };
 for (const [target, suffix] of [['chrome', 'chrome.zip'], ['firefox', 'firefox.xpi'], ['safari', 'safari-source.zip']]) {
   const filename = `pipit-${version}-${suffix}`, path = `artifacts/${filename}`;
   const bytes = readFileSync(path), checksum = createHash('sha256').update(bytes).digest('hex');
@@ -22,8 +23,9 @@ for (const [target, suffix] of [['chrome', 'chrome.zip'], ['firefox', 'firefox.x
 rmSync(output, { recursive: true, force: true });
 mkdirSync(join(output, 'assets'), { recursive: true });
 mkdirSync(join(output, 'downloads'), { recursive: true });
-for (const filename of ['index.html', 'style.css', 'app.js', 'detection.js', '_headers']) cpSync(`site/${filename}`, join(output, filename));
+for (const filename of ['index.html', 'style.css', 'app.js', 'detection.js', 'showcase.js', 'showcase.css', '_headers']) cpSync(`site/${filename}`, join(output, filename));
 cpSync('site/assets/pip.png', join(output, 'assets/pip.png'));
+for (const name of ['chrome.svg', 'firefox.svg', 'safari.png']) cpSync(`site/assets/${name}`, join(output, `assets/${name}`));
 cpSync('public/mark.svg', join(output, 'assets/mark.svg'));
 for (const name of ['InterVariable.woff2', 'OFL.txt']) cpSync(`public/fonts/${name}`, join(output, `assets/${name}`));
 cpSync('LICENSE', join(output, 'LICENSE.txt'));
@@ -34,6 +36,7 @@ for (const entry of readdirSync('dist')) {
   cpSync(join('dist', entry), join(reader, entry), { recursive: true });
 }
 let html = readFileSync(join(output, 'index.html'), 'utf8');
+html = html.replace(/ALPHA \d+ \/ VERSION [\d.]+/, `ALPHA 03 / VERSION ${version}`).replace(/Alpha 02/g, 'Alpha 03');
 for (const [target, item] of Object.entries(release.downloads)) {
   const name = item.url.split('/').pop();
   cpSync(`artifacts/${name}`, join(output, item.url));
@@ -47,6 +50,7 @@ writeFileSync(join(output, 'release.json'), JSON.stringify(release, null, 2) + '
 for (const [filename, page] of Object.entries(pages)) writeFileSync(join(output, filename), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="Pipit alpha — ${page.title}"><link rel="icon" href="/assets/mark.svg"><link rel="stylesheet" href="/style.css"><title>${page.title} — Pipit</title></head><body><header class="site-header wrap"><a href="/" class="brand"><img src="/assets/mark.svg" width="34" height="34" alt="">pipit.</a><a class="text-link" href="/#download">Downloads ↗</a></header><main class="document wrap"><a href="/">← Back to Pipit</a><h1>${page.title}</h1>${page.body}</main></body></html>\n`);
 writeFileSync(join(output, '404.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><title>Page not found — Pipit</title></head><body><main class="document wrap"><h1>A small detour.</h1><p>That page is not here. Your next idea might be.</p><a href="/">Return to Pipit →</a></main></body></html>');
 let count = 0;
+await buildDocs(output, version);
 function audit(directory) {
   for (const entry of readdirSync(directory)) {
     const path = join(directory, entry), stat = statSync(path);

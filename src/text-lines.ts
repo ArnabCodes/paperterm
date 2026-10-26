@@ -41,13 +41,19 @@ function centralGap(row: Row, pageWidth: number, minimumGap: number): number | n
 function splitRow(row: Row, split: number, minimumGap: number): SplitRow {
   const items = row.items;
   let prefixEnd = items[0].x + items[0].width;
+  let candidate = -1, distance = Infinity;
   for (let index = 1; index < items.length; index++) {
     const item = items[index];
     if (prefixEnd <= split && item.x >= split && item.x - prefixEnd >= minimumGap) {
       return { ...row, left: items.slice(0, index), right: items.slice(index), full: false };
     }
+    if (prefixEnd <= split + minimumGap * 2 && item.x >= split - minimumGap * 2 && item.x - prefixEnd >= minimumGap) {
+      const offset = Math.abs((prefixEnd + item.x) / 2 - split);
+      if (offset < distance) { candidate = index; distance = offset; }
+    }
     prefixEnd = Math.max(prefixEnd, item.x + item.width);
   }
+  if (candidate >= 0) return { ...row, left: items.slice(0, candidate), right: items.slice(candidate), full: false };
   if (prefixEnd <= split) return { ...row, left: items, right: [], full: false };
   if (items[0].x >= split) return { ...row, left: [], right: items, full: false };
   return { ...row, left: [], right: [], full: true };

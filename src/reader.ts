@@ -7,12 +7,13 @@ import type { EventBus as BusType } from 'pdfjs-dist/types/web/event_utils';
 import type { Preferences, ReferenceHit, TextLine } from './types';
 import { CanvasColorizer } from './canvas-colorizer';
 import { extractTextLines } from './text-lines';
+import { detectColumns, previewCrop, type PreviewBox } from './preview-region';
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const { PDFViewer, PDFLinkService, PDFFindController, EventBus } = await import('pdfjs-dist/web/pdf_viewer.mjs');
 
 export interface OutlineEntry { title: string; depth: number; dest: string | unknown[] | null; url?: string }
-export interface Location { page: number; top: number; left: number }
+export interface Location { page: number; top: number; left: number; zoom?: string; rotation?: number }
 
 export class Reader {
   readonly bus: BusType = new EventBus();
@@ -164,7 +165,7 @@ export class Reader {
     this.bus.dispatch('find', { source: this, type: again ? 'again' : '', query, phraseSearch: true, caseSensitive: false, entireWord: false, highlightAll: true, findPrevious: previous, matchDiacritics: false });
   }
 
-  get location(): Location { return { page: this.viewer.currentPageNumber, top: this.container.scrollTop, left: this.container.scrollLeft }; }
+  get location(): Location { return { page: this.viewer.currentPageNumber, top: this.container.scrollTop, left: this.container.scrollLeft, zoom: this.viewer.currentScaleValue, rotation: this.viewer.pagesRotation }; }
   get offset(): number {
     const view = this.viewer.getPageView(this.viewer.currentPageNumber - 1);
     return view?.div ? (this.container.scrollTop - view.div.offsetTop) / view.div.clientHeight : 0;
@@ -174,7 +175,14 @@ export class Reader {
     const view = this.viewer.getPageView(this.viewer.currentPageNumber - 1);
     if (view?.div) this.container.scrollTop = view.div.offsetTop + Math.min(1, Math.max(-1, offset)) * view.div.clientHeight;
   }
-  restore(location: Location) { this.container.focus({ preventScroll: true }); this.viewer.currentPageNumber = location.page; this.container.scrollTo({ top: location.top, left: location.left, behavior: 'instant' }); this.viewer.update(); }
+  restore(location: Location) {
+    this.container.focus({ preventScroll: true });
+    if (location.rotation !== undefined) this.viewer.pagesRotation = location.rotation;
+    if (location.zoom) this.viewer.currentScaleValue = location.zoom;
+    this.viewer.currentPageNumber = location.page;
+    this.container.scrollTo({ top: location.top, left: location.left, behavior: 'instant' });
+    this.viewer.update();
+  }
 
   goTo(page: number, normalizedY?: number) {
     this.container.focus({ preventScroll: true });
@@ -211,7 +219,7 @@ export class Reader {
     this.container.scrollLeft = Math.max(0, (view?.div.offsetLeft || 0) + left * scale * (96 / 72) - 16);
   }
 
-  async resolveDestination(destination: string | unknown[]): Promise<{ page: number; y: number } | null> {
+  async resolveDestination(destination: string | unknown[]): Promise<{ page: number; y: number; x?: number } | null> {
     if (!this.document) return null;
     const resolved = typeof destination === 'string' ? await this.document.getDestination(destination) : destination;
     if (!resolved) return null;
@@ -220,10 +228,11 @@ export class Reader {
     const viewport = page.getViewport({ scale: 1 });
     const type = (resolved[1] as { name?: string })?.name;
     const top = type === 'XYZ' ? resolved[3] : type === 'FitH' || type === 'FitBH' ? resolved[2] : null;
-    return { page: pageNumber, y: typeof top === 'number' ? viewport.convertToViewportPoint(0, top)[1] / viewport.height : 0 };
+    const xpos = type === 'XYZ' && typeof resolved[2] === 'number' ? resolved[2] : undefined;
+    return { page: pageNumber, y: typeof top === 'number' ? viewport.convertToViewportPoint(0, top)[1] / viewport.height : 0, x: xpos === undefined ? undefined : xpos / viewport.width };
   }
 
-  async preview(hit: Pick<ReferenceHit, 'page' | 'y'>, canvas: HTMLCanvasElement, magnification = 1) {
+  async preview(hit: Pick<ReferenceHit, 'page' | 'y'> & { x?: number; label?: string }, canvas: HTMLCanvasElement, magnification = 1, fullPage = false) {
     this.cancelPreview();
     this.colors.cancel(canvas);
     this.colorVersions.set(canvas, (this.colorVersions.get(canvas) || 0) + 1);
@@ -234,25 +243,53 @@ export class Reader {
     if (generation !== this.previewGeneration) return false;
     const rotation = (page.rotate + this.viewer.pagesRotation) % 360;
     const base = page.getViewport({ scale: 1, rotation });
-    const availableWidth = Math.max(120, canvas.parentElement!.clientWidth - 16);
-    const cssScale = Math.min(this.viewer.currentScale * (96 / 72) * .95, availableWidth / base.width) * magnification;
-    const width = base.width * cssScale;
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(8_000_000 / (base.width * base.height * cssScale * cssScale)));
-    const viewport = page.getViewport({ scale: cssScale * pixelRatio, rotation });
+    const availableWidth = Math.max(120, canvas.parentElement!.clientWidth);
+    const cssScale = Math.min(this.viewer.currentScale * (96 / 72) * .95, availableWidth / base.width);
+    const viewport = page.getViewport({ scale: Math.min(700 / base.width, 1200 / base.height), rotation });
     const buffer = document.createElement('canvas');
     buffer.width = viewport.width; buffer.height = viewport.height;
     buffer.getContext('2d', { alpha: true, willReadFrequently: true });
     this.previewTask = page.render({ canvas: buffer, viewport, annotationMode: 0 });
     try { await this.previewTask.promise; } catch (error) { if (generation !== this.previewGeneration) return false; throw error; }
     if (generation !== this.previewGeneration) return false;
-    await this.color(buffer, true);
+    const content = await page.getTextContent();
     if (generation !== this.previewGeneration) return false;
-    canvas.width = buffer.width; canvas.height = buffer.height;
-    canvas.style.width = `${width}px`; canvas.style.height = `${base.height * cssScale}px`;
-    canvas.dataset.documentScale = String(cssScale / (96 / 72));
-    canvas.dataset.colorBackend = buffer.dataset.colorBackend || 'original';
-    canvas.getContext('2d', { alpha: true, willReadFrequently: true })!.drawImage(buffer, 0, 0);
-    const source = this.original.get(buffer);
+    const boxes: PreviewBox[] = content.items.filter((item): item is TextItem => 'str' in item && !!item.str.trim()).map(item => {
+      const first = base.convertToViewportPoint(item.transform[4], item.transform[5]);
+      const last = base.convertToViewportPoint(item.transform[4] + item.width, item.transform[5] + item.height);
+      return { x: Math.min(first[0], last[0]) / base.width, y: Math.min(first[1], last[1]) / base.height, width: Math.abs(last[0] - first[0]) / base.width, height: Math.abs(last[1] - first[1]) / base.height, text: item.str };
+    });
+    const analysis = buffer;
+    const analysisContext = analysis.getContext('2d', { willReadFrequently: true })!;
+    const originalViewport = page.getViewport({ scale: 1 });
+    const point = originalViewport.convertToPdfPoint((hit.x ?? .5) * originalViewport.width, hit.y * originalViewport.height);
+    const rotatedPoint = base.convertToViewportPoint(point[0], point[1]);
+    const number = /^Equation\s*(\(.+\))$/i.exec(hit.label || '')?.[1];
+    const numberBox = number ? boxes.find(box => box.text.trim() === number && Math.abs(box.y + box.height - rotatedPoint[1] / base.height) < .035) : undefined;
+    const targetX = numberBox ? numberBox.x + numberBox.width / 2 : hit.x === undefined ? undefined : rotatedPoint[0] / base.width;
+    const crop = previewCrop(boxes, analysisContext.getImageData(0, 0, analysis.width, analysis.height), { ...hit, x: targetX, y: rotatedPoint[1] / base.height }, fullPage);
+    const contextCrop = { ...crop, y: 0, height: 1 };
+    const displayScale = crop.cropped ? availableWidth / (base.width * crop.width) * magnification : cssScale * magnification;
+    const cropped = document.createElement('canvas');
+    const detailRatio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(8_000_000 / (base.width * contextCrop.width * base.height * displayScale * displayScale)));
+    const detailViewport = page.getViewport({ scale: displayScale * detailRatio, rotation });
+    cropped.width = Math.max(1, Math.round(detailViewport.width * contextCrop.width)); cropped.height = Math.max(1, Math.round(detailViewport.height));
+    cropped.getContext('2d', { willReadFrequently: true });
+    this.previewTask = page.render({ canvas: cropped, viewport: detailViewport, transform: [1, 0, 0, 1, -detailViewport.width * contextCrop.x, 0], annotationMode: 0 });
+    try { await this.previewTask.promise; } catch (error) { if (generation !== this.previewGeneration) return false; throw error; }
+    if (generation !== this.previewGeneration) return false;
+    await this.color(cropped, true);
+    if (generation !== this.previewGeneration) return false;
+    canvas.width = cropped.width; canvas.height = cropped.height;
+    canvas.style.width = `${base.width * contextCrop.width * displayScale}px`; canvas.style.height = `${base.height * displayScale}px`;
+    canvas.dataset.documentScale = String(displayScale / (96 / 72));
+    canvas.dataset.crop = JSON.stringify(crop); canvas.dataset.column = crop.column;
+    canvas.dataset.contextCrop = JSON.stringify(contextCrop);
+    canvas.dataset.twoColumns = String(detectColumns(boxes)); canvas.dataset.sourceX = String(hit.x);
+    canvas.dataset.targetY = String(Math.max(0, rotatedPoint[1] / base.height));
+    canvas.dataset.colorBackend = cropped.dataset.colorBackend || 'original';
+    canvas.getContext('2d', { alpha: true, willReadFrequently: true })!.drawImage(cropped, 0, 0);
+    const source = this.original.get(cropped);
     if (source) this.original.set(canvas, source); else this.original.delete(canvas);
     return true;
   }

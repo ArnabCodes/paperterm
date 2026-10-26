@@ -1,4 +1,64 @@
-# Pipit Alpha 01 — release dashboard
+# Pipit Alpha 03 — release dashboard
+
+## Pipit Tutor — 26 October 2026
+
+Published 0.10.0 / Alpha 03 at https://6fa3c407.pipit-reader.pages.dev/ and the production alias. Manifest: `docs/releases/0.10.0-alpha.3.json`. Arnab subsequently authorized committing and pushing the current source to the private GitHub repository. GitHub release uploads and store submissions remain outside this update.
+
+The six-page, two-column pdfLaTeX paper includes selectable text, links, numbered equations, a vector figure and a table. Observations are explicitly synthetic teaching data. Source and hashes: `tutorial/`. `:Tutor`, the welcome button and website open the guided route. Ten real-action missions award 300 XP and four badges, with hints, skips, pause/resume, revisits and confirmed reset. Reset retains notes/bookmarks. Desktop reserves a coach margin; mobile uses a scrollable compact coach. Existing unguided sample remains compatible.
+
+Validation: full `npm run verify:alpha` passed, including 37 tutor checks, 16 archive checks across 305 shared files, 12 detection and 24 site artifact checks. Chromium completes all ten missions and 300 XP, then verifies persistence, reset with notes retained, no awards for reopening existing notes, skips and hints. Chromium extension passes 9 interception/download regressions plus Tutor launch, bundled PDF and real XP. Firefox 158 passes 33 extension checks including Tutor under CSP, navigation XP, research search, previews, notebook round trip and OpenAlex. Tests now wait for complete Firefox backup downloads and Chromium PDF handoff.
+
+All six PDF pages and desktop/mobile coach and website screenshots visually inspected; supplied develop-web-game client ran successfully. Native editor compilation did not return; installed pdfLaTeX compiled the actual deliverable twice and Poppler verified it. Safari runtime was unavailable on Windows: source parity is packaged and checked, with source-only/manual-open limits retained.
+
+Production: 41 independent HTTPS/package/SHA-256 checks passed; live Tutor and documentation verified at 1440/768/390px. Hosted `/reader/tutor.pdf` separately matches the local receipt: 346,579 bytes, SHA-256 `20963bf2fc2f2ea29717bf6a1cbcb2e9ca903a5925bc85fac1a1cd132ff73d86`. Evidence: `output/playwright/tutor-*`, `output/playwright/tutor/`, `output/playwright/v0100-public-downloads.json` and `output/tutor-latex/`.
+
+## Public-copy audit and dual-input demos — 26 October 2026
+
+Published website-only deployment https://9f227963.pipit-reader.pages.dev/. Removed the browser-caret troubleshooting entry, the one-off ScienceDirect verification report, private-repository references and build/test commentary from customer-facing copy. Retained actionable product limits: unsigned/source-only installation, folder grants, OCR dependence, separate notebook sidecars and publisher access. The public-copy audit checks all five HTML pages and three text-bearing scripts locally and over HTTPS; internal investigation notes stay in this private repository, not the generated user guide.
+
+Consolidated the duplicate feature-card mini-demos into the main four-scene showcase. Cards now link to the corresponding scene. Each scene has Mouse and Keyboard controls, a simulated click pointer and a top-right key display. The tour shows mouse interaction followed by its keyboard counterpart; actual F/hint, j/k, colon, g d and graph arrow/Enter input works inside the emulated screen. Space/Enter are distinguished, and keys outside the demo are not captured or stored. Pause, offscreen/hidden-tab cancellation and reduced-motion behavior remain supported.
+
+Validation: 36 new dual-input checks pass locally and on production at 320–1440px; 16 docs checks pass locally and on production. Existing website/showcase/feature checks pass 37/26/17, with 12 detection and 24 site artifact checks plus documentation build checks. Public copy audit passes for eight resources, and all three unchanged extension archives pass 41 independent HTTPS/hash checks. Desktop/phone screenshots and mouse/keyboard states were visually reviewed. Evidence: `output/playwright/dual-input-*`.
+
+## Public user documentation — 26 October 2026
+
+Published at https://pipit-reader.pages.dev/docs/ through website-only deployment a6e6450b. Homepage header/footer link to ten searchable topics: getting started, installation/updates, navigation/search, reference lens/split view, appearance, notes/export, local files, citations/publisher access, keyboard guide and troubleshooting. The eight keyboard groups are built from reader command literals and the shared help generator, including leader bindings and context labels. The guide requires no backend or network search; every topic remains readable without JavaScript. Browser-specific installation and privacy/access limits are explicit.
+
+Docs build checks, 12 detection and 24 site artifact checks pass. Sixteen docs browser checks pass locally and on production across 320–1440px, including search, empty/reset states, section links and no-JavaScript fallback. Existing website regression checks pass 37, including actual downloads and the hosted-reader equation preview. All three unchanged extension archives pass 41 public HTTPS/hash checks. Desktop and native-width mobile docs screenshots were reviewed. Evidence: `output/playwright/docs-*`.
+
+## Feature-focused website copy — 26 October 2026
+
+Published at https://9e5e3216.pipit-reader.pages.dev/ with the existing production alias. Replaced slogan-led copy with a clear research-PDF product description, descriptive interactive-demo labels and eight feature groups: reference previews, themes, keyboard/history, notebook export, split views, citation networks, local folder browsing and local processing. Added actual shortcuts and explicit coverage/access/annotation limitations. Corrected the obsolete FAQ statement denying cross-paper graphs; metadata and supporting-page titles now describe their contents. The decorative reading dock is hidden in the graph illustration so it does not cover the selected-node description. Extension packages are unchanged.
+
+Seventeen feature-copy checks pass locally and on production across 320–1440px. Existing website/showcase/cursor checks pass 37/26/14; detection/artifact checks pass 12/24. All three public downloads retain their release-manifest SHA-256 values; 41 public HTTPS checks pass. Desktop, phone, and all four demo scenes were visually reviewed. Evidence: `output/playwright/feature-copy-*`.
+
+## Website-builder polish — 26 October 2026
+
+Applied the Sites skill's implementation, local-preview and visual-QA workflow to the existing checkout, preserving Cloudflare hosting rather than registering a duplicate Site. Website-only deployment: https://7b8efa62.pipit-reader.pages.dev/. Added explicit static/default and interactive/text-input cursor behavior, transparent insertion-caret inheritance for non-input content, restored visible carets for real inputs, clearer hover/focus states, larger checksum/footer copy, and a properly hidden-until-focused skip link. Text selection remains enabled. Extension archives and reader code are unchanged.
+
+No `contenteditable` or design-mode editing was found on ordinary copy. Browser caret-browsing navigation is distinct from a site's insertion caret and cannot be claimed fixed by CSS; if a caret still appears throughout the page, Chrome's F7 / Accessibility → Navigate pages with a text cursor setting is the relevant user-controlled option. No browser-wide accessibility setting or keyboard navigation was disabled.
+
+Validation: 14 targeted checks pass locally and on production, including real command input, selection, skip link, keyboard focus and 320–1440px overflow checks. Existing site/showcase checks pass 37/26, detection/artifact checks 12/24, and production download/hash checks 41. Desktop full-page and native-width phone screenshots were visually reviewed. Evidence: `output/playwright/site-polish-*`.
+
+## Browser-mark visual pass — 26 October 2026
+
+Published website-only update: https://d532f765.pipit-reader.pages.dev/ (production alias unchanged). Replaced Unicode browser placeholders with unmodified vendor Chrome/Firefox SVGs and Apple's Safari PNG, self-hosted in matching 40px boxes. Sources/trademark attribution: `site/assets/BROWSER-MARKS.md` and the public credits page. Extension packages and their Alpha 02 checksums are unchanged.
+
+Inspected full desktop/mobile screenshots and the desktop download section. The focused browser flow passes 19 checks at 1440, 1024, 768, 390 and 320px, including loaded artwork, opacity, alignment, overflow and keyboard order; repeated successfully on production. Existing site and interactive-showcase flows pass 37 and 26 checks; detection and site artifact checks pass 12 and 24 checks. All three public downloads independently pass the existing 41 HTTPS/hash/archive checks. Evidence: `output/playwright/browser-marks-*`.
+
+## Current publication — 22 October 2026
+
+Pipit **0.9.0 / Alpha 02** is published at https://pipit-reader.pages.dev/ after Arnab authorized updating the website and its extension downloads. Production deployment: https://f0ffad11.pipit-reader.pages.dev/. Download identities and SHA-256 values are recorded in `docs/releases/0.9.0-alpha.2.json`. Chromium is an unpacked ZIP; Firefox is unsigned/temporary; Safari is a source payload, not a signed installer. GitHub remains private and its existing prerelease was not changed. No commit, push or store submission was performed.
+
+Release validation: 108 unit checks, 16 archive checks, 12 browser-detection cases and 21 site artifact checks; native Chromium interception 9, native Firefox 158 reader/extension 30, publisher-discovery Chromium 13 (controlled publisher responses), local-files Chromium 13, local website 37 and showcase 26 checks. Production independently passed 41 anonymous HTTPS checks and 37 browser checks, including all three actual downloads, checksum companions, archive contents, security headers, private-path exclusions and hosted-reader WASM equation preview. Logs and snapshots: `output/playwright/v090-*`. Real institutional access to the reported ScienceDirect article and native Safari remain unverified.
+
+Recheck the exact published artifacts without rebuilding:
+
+```sh
+node scripts/verification/public-downloads.mjs https://pipit-reader.pages.dev docs/releases/0.9.0-alpha.2.json
+```
+
+## Historical Alpha 01 record
 
 Version: 0.8.0. GitHub release tag: `v0.8.0-alpha.1`. Product rename: Paperterm → Pipit. This is an experimental desktop-browser reader, not production certification or full Sioyek parity.
 

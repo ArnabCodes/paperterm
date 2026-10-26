@@ -1,6 +1,38 @@
 # Validation record
 
-Date: 2026-10-19. Local Windows validation, not an assertion of universal PDF compatibility or full Sioyek equivalence.
+Updated: 2026-10-21. Local Windows validation, not an assertion of universal PDF compatibility or full Sioyek equivalence.
+
+## Version 0.9.0 — local review, not published
+
+### Two-sided dock and quiet citation explorer — 2026-10-21
+
+Production build, **105 unit checks**, **16 archive checks** (304 identical shared assets), and **261 reader browser assertions** pass in this review: 32 new standalone UI checks, 32 native Chromium-extension UI checks, 8 live identification/multi-hop checks, 30 native Firefox 158 checks, 31 lens/notebook/history regressions, 15 keyboard, 34 research, 8 real-paper, 23 guide, 15 preview/resize, 24 legacy field/crop/manual-search and 9 Chromium interception checks. Logs and screenshots use `output/playwright/quiet-*`. Browser-test setup now isolates mocked routes, viewport and navigation URLs rather than leaking these between independent checks.
+
+New checks cover side expansion around stationary unobstructed core targets, hover activation, the 28px safe menu radius, actual dock/menu backdrop treatment with opaque text, conservative automatic identification, persisted PDF-to-work associations, reference/citing direction, genuine 1–3-hop data, fading circle fills, citation-rate size differences, indexed open-PDF links, graph/list navigation, responsive 320/390px layouts and reduced motion. The live TraceMonkey example fetches 77 works and 179 directed links in seven requests, with actual second/third-order citing works and an indexed arXiv PDF. Records and displayed subsets are distinguished; this is not an exhaustive network or guaranteed PDF-host availability.
+
+Three current six-second TraceMonkey scroll runs have p95 frame intervals of 16.8 ms. First/cold run: two Long Tasks totaling 248 ms; subsequent runs: none. Frames over 34 ms: 2/0/0; every run reaches page 14. Logs retain the environment, whose reported hardware-concurrency hint is 64 versus 56 in the preceding benchmark. These are diagnostic non-regression checks, not a controlled hardware-identical speedup claim.
+
+Opening the explorer now permits automatic title/DOI identification, as requested, with a visible opt-out; opening a PDF alone never makes that API request. Ambiguous author/year matches remain manual; matching indexed edition families use the most-cited record with a provenance caveat. Native Safari/macOS and screen-reader usability remain unverified. The website/packages are rebuilt only locally; nothing is committed, pushed, deployed or published.
+
+### Reader consolidation review — 2026-10-21
+
+The subsequent dock/lens/notebook refinement passes the production build, **96 unit checks**, **16 archive checks**, and **217 browser assertions**: 31 standalone refinement checks, 31 native Chromium-extension refinement checks, 27 native Firefox 158 checks, 15 keyboard, 34 research, 23 guide, 15 preview-surface/resize, 8 real-paper, 24 field-map/crop, and 9 Chromium interception checks. All three packages still share 304 byte-identical reader assets. New annotation validation includes actual JSON export/import round trips in both Chromium and Firefox, plus invalid-document/conflict/limits unit checks. Native Firefox caught a floating-preview focus edge case; scroll routing now explicitly targets the floating lens even during focus handoff. All passing evidence uses `output/playwright/refinement-*`.
+
+The six-second TraceMonkey scroll comparison has unchanged p95 frame intervals (16.8 ms in all three before/after runs); no >50 ms Long Tasks were recorded in the after runs. This is a bounded local non-regression result, not a universal performance claim. Full evidence, exact shortcut behavior, the ten-proposal audit and deliberately deferred features are in [UX-REVIEW.md](UX-REVIEW.md). Safari/macOS remain runtime-untested. Nothing was published, pushed or deployed.
+
+### Initial field-map/column-preview implementation
+
+Per Arnab's explicit instruction, no deployment, commit, push or release upload was performed. The public website and 0.8.0 download checksums remain unchanged. Local Chromium/Firefox/Safari-source archives are under ignored artifacts/pipit-0.9.0-*.
+
+Production build, **88 unit checks** (including 17 new field-network/title/crop checks) and **16 archive checks** pass. All three packages retain 304 byte-identical shared assets. The regression for adjacent equation labels preserves the real 14-page TraceMonkey paper's nineteen bibliography entries.
+
+**183 browser assertions pass:** standalone field/crop flow 24; native Chromium field/crop flow 24; native Firefox 158 extension flow 19; keyboard 15; local research tools 33; guide 23; preview surfaces/resizing 15; recoloring/keyboard polish 11; real research paper 8; Chromium interception 9; extension CSP/tab closing 2. Native Safari and macOS execution are not tested.
+
+Live, anonymous OpenAlex calls for the public DOI 10.1145/1542476.1542528 resolve the correct paper after confirmation. Its bounded neighborhood has 43 distinct works and 114 citation edges in the cached snapshot: 14 references returned from 15 requested IDs, 18 citing works, and 10 related works. The incomplete reference subset is visible in the UI. This is an example of actual provider data, not proof of complete field coverage or influence. Later iterations reuse the browser-local metadata cache. The HTTP 429 UI check uses an explicit controlled response, not an assertion that the live provider failed.
+
+Browser checks cover no request on dialog opening, title inference from an actual PDF without title metadata, explicit candidate confirmation, provenance/subset sizes, keyboard graph navigation, filter/recenter affordances, cache reuse, separate offline local backlinks, rate-limit errors, right/left-column equation crops, graphic extent above captions, exclusion of the preceding paragraph, sharp direct crop rendering, full-page override, content-only surfaces, transient context menu, focus handling and pinned-panel resizing. The original-raster analysis render is bounded to 700×1200; the final display crop is rendered separately with an approximately eight-million-pixel budget and recolored before swapping.
+
+Screenshots, normalized network snapshots, source queries, test outputs and native-browser profiles are cached under ignored output/playwright/v090-*. No private PDF was sent to a data provider. See [CITATION-MAP.md](CITATION-MAP.md) for request/privacy behavior and heuristic limitations.
 
 ## Version 0.8.0 — Pipit Alpha 01
 
@@ -116,3 +148,23 @@ macOS/Linux execution, screen-reader behavior, all keyboard layouts, enterprise 
 The graph is local to one document and indexes positive numeric square-bracket markers. Author–year citations, superscripts, split-line groups, and scanned text are unsupported. Array indices can look like citations. Complex columns, tables, image-only full-width figures, RTL and rotated text can still disrupt reading order. Rendering remains PDF.js; the extraction adjustment affects lookup order, not page pixels. Notes are browser-local and do not embed PDF annotations or sync across devices. Palette quantization approximates colors and saturation, including images; retain original rendering when color information matters.
 
 The browser cannot provide desktop/window transparency. Normal content colors, custom recoloring, and replacement palettes are separate from OS compositor features.
+
+## Local website showcase review — 2026-10-21
+
+Feature-first landing-page update, not deployed. Four code-native illustrations demonstrate equation peeks, scoped keyboard navigation and command filtering, live palette changes, and an explicitly fictional upcoming-field-map scene. These do not claim to render a real PDF; a separate link opens the real reader.
+
+Validation: 88 reader unit checks, 12 browser-detection cases, 21 website build checks, 37 existing website browser checks (including three actual downloads, checksums, CSP, real-reader lookup and no-JavaScript fallback), plus 26 checks in the dedicated `scripts/verification/site-showcase.js` browser flow. Evidence is retained under `output/playwright/website-motion-*`. Desktop/mobile screenshots reviewed; no horizontal overflow at 320, 390, 768 and 1024 pixels. Native Safari and Firefox rendering of this redesign remains untested. Automatic tours stop on interaction, offscreen visibility or hidden tabs; reduced-motion users start without autoplay. No external assets or network APIs were added.
+
+## Internal file browser — local review, 2026-10-21
+
+- `npm run build` and `npm test` pass after the internal selector change.
+- `scripts/verification/file-browser.js` checks internal-first opening without a system chooser, three columns, Vim folder traversal, selection/filtering, Escape, session folder reuse, PDF opening, narrow viewport sizing, permission denial, and explicit file import. Chromium directory handles are simulated; the imported PDF and reader opening use the actual bundled field-guide PDF. Desktop screenshot: `output/playwright/file-browser-desktop.png`.
+- System permissions cannot be bypassed. Connect folder explicitly opens a browser-controlled picker; where the directory-handle API is unavailable, a directory input preserves relative paths. Folder handles/imports last for the current tab session only. No disk writes or remote file transfers are introduced.
+- Actual Firefox/Safari folder-picker runtime and assistive-technology coverage have not been validated for this change; existing platform limitations remain. Nothing is published.
+
+## Publisher PDF discovery — local review, 2026-10-21
+
+- Build succeeds and all 108 unit checks pass, including subscriber-only PDF normalization and Chromium/Firefox toolbar article handoff with explicit download bypasses.
+- `publisher-pdf.js`: 13 checks each in the localhost reader and native unpacked Chromium extension, using controlled publisher responses and the actual six-page PDF fixture. Covers the exact reported ScienceDirect article URL, five link representations, inert script/base handling, unsafe/supplementary rejection, HTTP 403 guidance/retry, and graph PDF-link provenance. Publisher responses and institutional authorization are simulated, not live access evidence.
+- Existing quiet-explorer flow: 32 checks pass; native Chromium MIME/attachment/download interception: 9 checks pass. Logs: `output/playwright/publisher-{browser,native-browser,regression,extension,units,build}.txt`; screenshot: `output/playwright/publisher-graph.png`. Expected simulated HTTP 403 network messages are not JavaScript failures.
+- The real ScienceDirect article returned HTTP 403 to web fetching and a "Just a moment..." browser page. Its live PDF and this user's institutional entitlement could not be verified here. No challenge/paywall bypass, native Firefox/Safari runtime claim, publication, commit or push is made.
