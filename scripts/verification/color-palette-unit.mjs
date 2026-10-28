@@ -85,9 +85,12 @@ check('pure pixel helper preserves alpha and input; Paper stays original when di
 
 check('storage and reading-state APIs remain available', () => {
   const saved = new Map();
-  globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value) };
+  globalThis.localStorage = { getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) };
   assert.equal(saveStored('test', { page: 3 }), true);
   assert.deepEqual(readStored('test', {}), { page: 3 });
+  saved.set('paperterm.preferences.v2', JSON.stringify({ theme: 'paper' }));
+  assert.deepEqual(readStored('pipit.preferences.v2', {}), { theme: 'paper' });
+  assert.equal(saved.has('paperterm.preferences.v2'), false, 'legacy settings are moved to Pipit storage');
   saved.set('bad', '{');
   assert.equal(readStored('bad', 'fallback'), 'fallback');
   assert.equal(defaultReadingState().page, 1);

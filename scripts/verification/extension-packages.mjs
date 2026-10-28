@@ -15,7 +15,9 @@ for (const [target, suffix] of [['chrome', 'chrome.zip'], ['firefox', 'firefox.x
   assert.ok(Object.keys(files).every(name => !name.includes('\\') && !name.startsWith('/') && !name.split('/').includes('..'))); checks++;
   for (const name of ['manifest.json', 'index.html', 'background.js', 'extension-policy.js', 'core.wasm', 'sample.pdf', 'fonts/InterVariable.woff2', 'vendor/PDFJS-LICENSE', 'INSTALL.txt']) assert.ok(files[name], `${target}: ${name}`);
   assert.ok(WebAssembly.validate(files['core.wasm'])); checks++;
-  assert.equal(JSON.parse(strFromU8(files['manifest.json'])).version, version); checks++;
+  const manifest = JSON.parse(strFromU8(files['manifest.json']));
+  assert.equal(manifest.version, version); checks++;
+  if (target === 'firefox') { assert.equal(manifest.browser_specific_settings.gecko.id, 'pipit@arnabcodes'); checks++; }
 }
 for (const name of Object.keys(packages.chrome).filter(name => !['manifest.json', 'background.js', 'INSTALL.txt'].includes(name))) {
   for (const target of ['firefox', 'safari']) assert.deepEqual(packages[target][name], packages.chrome[name], `${target} shared frontend ${name}`);

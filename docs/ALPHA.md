@@ -1,8 +1,10 @@
 # Pipit Alpha 04 — release dashboard
 
-## 0.11.7 PDF workflow fixes — 28 October 2026
+## 0.11.7 Pipit editing workspace — 28 October 2026
 
-Pushed to the private GitHub repository as `81b6774`, with redirect-safe Zotero handoff follow-up `3bab9e5`; not deployed. The reading ruler follows visible PDF text lines and scrolls one line at viewport edges. Ctrl+P / ⌘+P opens PDF.js document bytes in the browser’s native PDF viewer for printing without first saving a copy. `g Z` opens a remote PDF in the browser for Firefox/Zotero Connector while preserving the original URL through redirects. Chromium and Firefox leave Overleaf-originated top-level PDF tabs untouched so Overleaf retains its own SyncTeX viewer. Pipit itself does not implement SyncTeX. Production build, packages and local site build completed; browser behavior was not exercised in this pass. No website deployment or store submission is included in this source update.
+Published to the public [Pipit GitHub repository](https://github.com/ArnabCodes/pipit) and [Pipit website](https://pipit-reader.pages.dev/). Chromium, Firefox, and Safari-target packages are rebuilt with Pipit branding and published checksums. Page thumbnails support selection, reorder, rotate, delete, bounded undo, PDF/image insertion, and cross-document page copy/paste. The Commands and dock surfaces include text/signature stamps, PDF form fill/save-copy, and timestamped edit history. Vim-style Visual selection copies text and creates sidecar highlights/notes; annotations stay separate from the original PDF. Page changes save to a new copy. Embedded text rewriting and certificate-backed digital signatures are unsupported.
+
+Existing local preferences, reading positions, bookmarks, notebooks, Visual settings, edit history, and recent PDF copies migrate into Pipit-named browser storage. Firefox uses the renamed Pipit development add-on ID; remove and reload an older temporary XPI when upgrading. Overleaf-originated PDF tabs remain with Overleaf for SyncTeX. Ctrl/Cmd+P opens the browser’s native PDF viewer, and `g Z` hands a remote source to Zotero. The website and download packages were rebuilt and live checks passed; native Safari execution remains unverified. No browser store submission is included.
 
 ## 0.11.6 Flight School — 27 October 2026
 

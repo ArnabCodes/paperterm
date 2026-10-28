@@ -1,4 +1,5 @@
-export interface NotebookEntry { id: string; excerpt: string; page: number; offset: number; note: string }
+export type NotebookEntryKind = 'note' | 'highlight';
+export interface NotebookEntry { id: string; excerpt: string; page: number; offset: number; note: string; kind?: NotebookEntryKind; createdAt?: number; updatedAt?: number }
 export const notebookLimits = { entries: 200, text: 8000, bytes: 8 * 1024 * 1024 };
 export function parseNotebookSidecar(text: string, documentId: string, pageCount = Infinity): NotebookEntry[] {
   if (text.length > notebookLimits.bytes) throw new Error('Notebook backup is too large.');
@@ -7,16 +8,16 @@ export function parseNotebookSidecar(text: string, documentId: string, pageCount
   if (!Array.isArray(value.entries) || value.entries.length > notebookLimits.entries) throw new Error('Notebook entry limit exceeded.');
   const ids = new Set<string>();
   return value.entries.map((entry: NotebookEntry) => {
-    if (!entry || typeof entry.id !== 'string' || !entry.id || entry.id.length > 128 || ids.has(entry.id) || typeof entry.excerpt !== 'string' || entry.excerpt.length > notebookLimits.text || typeof entry.note !== 'string' || entry.note.length > notebookLimits.text || !Number.isInteger(entry.page) || entry.page < 1 || entry.page > pageCount || !Number.isFinite(entry.offset) || entry.offset < -1 || entry.offset > 1) throw new Error('The backup contains an invalid note. Nothing was imported.');
+    if (!entry || typeof entry.id !== 'string' || !entry.id || entry.id.length > 128 || ids.has(entry.id) || typeof entry.excerpt !== 'string' || entry.excerpt.length > notebookLimits.text || typeof entry.note !== 'string' || entry.note.length > notebookLimits.text || !Number.isInteger(entry.page) || entry.page < 1 || entry.page > pageCount || !Number.isFinite(entry.offset) || entry.offset < -1 || entry.offset > 1 || (entry.kind !== undefined && entry.kind !== 'note' && entry.kind !== 'highlight') || (entry.createdAt !== undefined && (!Number.isFinite(entry.createdAt) || entry.createdAt < 0)) || (entry.updatedAt !== undefined && (!Number.isFinite(entry.updatedAt) || entry.updatedAt < 0))) throw new Error('The backup contains an invalid note. Nothing was imported.');
     ids.add(entry.id);
-    return { id: entry.id, excerpt: entry.excerpt, note: entry.note, page: entry.page, offset: entry.offset };
+    return { id: entry.id, excerpt: entry.excerpt, note: entry.note, page: entry.page, offset: entry.offset, ...(entry.kind ? { kind: entry.kind } : {}), ...(entry.createdAt !== undefined ? { createdAt: entry.createdAt } : {}), ...(entry.updatedAt !== undefined ? { updatedAt: entry.updatedAt } : {}) };
   });
 }
 export function mergeNotebookEntries(current: readonly NotebookEntry[], incoming: readonly NotebookEntry[]): NotebookEntry[] {
   const result = current.map(entry => ({ ...entry }));
   for (const entry of incoming) {
     const existing = result.find(item => item.id === entry.id);
-    if (existing && (existing.excerpt !== entry.excerpt || existing.note !== entry.note || existing.page !== entry.page || existing.offset !== entry.offset)) throw new Error('A backup note conflicts with an edited local note. Export your local notebook first; no notes were replaced.');
+    if (existing && (existing.excerpt !== entry.excerpt || existing.note !== entry.note || existing.page !== entry.page || existing.offset !== entry.offset || (existing.kind || 'note') !== (entry.kind || 'note') || (existing.createdAt ?? 0) !== (entry.createdAt ?? 0) || (existing.updatedAt ?? 0) !== (entry.updatedAt ?? 0))) throw new Error('A backup note conflicts with an edited local note. Export your local notebook first; no notes were replaced.');
     if (!existing) result.push({ ...entry });
   }
   if (result.length > notebookLimits.entries) throw new Error('Import would exceed the notebook limit. Nothing was imported.');

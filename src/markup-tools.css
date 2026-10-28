@@ -1,0 +1,25 @@
+.markup-dialog { width: min(500px, calc(100vw - 28px)); max-width: none; max-height: min(90dvh, 760px); padding: 0; overflow: auto; border: 1px solid var(--glass-border); border-radius: 22px; color: var(--ink); background: color-mix(in srgb, var(--surface) 78%, transparent); box-shadow: 0 24px 90px #0004; backdrop-filter: blur(28px) saturate(155%); -webkit-backdrop-filter: blur(28px) saturate(155%); }
+.markup-dialog::backdrop { background: #131b1752; backdrop-filter: blur(5px); }
+.markup-card { display: grid; gap: 14px; padding: 22px; }
+.markup-card header, .markup-card footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.markup-card header > span { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 600; }
+.markup-card header .app-icon { color: var(--accent); }
+.markup-card header button { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; }
+.markup-card p, .markup-card small { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.markup-card label { display: grid; gap: 7px; font-size: 12px; }
+.markup-card textarea, .markup-card input { width: 100%; min-height: 44px; padding: 11px 13px; border: 0; border-radius: 10px; color: var(--ink); background: color-mix(in srgb, var(--raised) 70%, transparent); font: inherit; }
+.markup-card textarea { min-height: 116px; resize: vertical; line-height: 1.6; }
+.markup-card textarea:focus, .markup-card input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 1px; }
+.markup-card footer > span { color: var(--muted); font-size: 10px; }
+.markup-card kbd { padding: 3px 5px; border-radius: 5px; color: var(--ink); background: color-mix(in srgb, var(--raised) 80%, transparent); }
+.markup-card .primary { padding: 10px 14px; border-radius: 10px; color: var(--surface); background: var(--accent); font-size: 12px; }
+.signature-pad { display: block; width: 100%; height: 170px; border-radius: 12px; background: color-mix(in srgb, var(--raised) 60%, transparent); cursor: crosshair; touch-action: none; }
+.signature-pad:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.signature-card small { text-align: right; }
+.signature-clear { padding: 9px 12px; border-radius: 9px; color: var(--muted); background: color-mix(in srgb, var(--raised) 70%, transparent); font-size: 12px; }
+.page-markup-marker { position: absolute; z-index: 12; width: 20px; height: 20px; transform: translate(-50%, -50%); border: 2px solid var(--accent); border-radius: 50%; background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 16%, transparent); pointer-events: none; }
+.placement-hud { position: fixed; z-index: 60; left: 50%; top: 14px; transform: translateX(-50%); max-width: calc(100vw - 24px); padding: 10px 14px; border-radius: 12px; color: var(--ink); background: color-mix(in srgb, var(--surface) 35%, transparent); box-shadow: 0 8px 35px #0003; backdrop-filter: blur(22px) saturate(150%); font-size: 12px; text-align: center; }
+.placement-hud kbd { padding: 2px 4px; border-radius: 4px; background: color-mix(in srgb, var(--raised) 75%, transparent); }
+:root[data-glass='false'] .markup-dialog, :root[data-glass='false'] .placement-hud { background: var(--surface); backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce) { .markup-dialog, .placement-hud { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+@media (max-width: 520px) { .markup-card { padding: 18px; } .placement-hud { top: 8px; font-size: 10px; } }

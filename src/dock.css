@@ -64,3 +64,35 @@
 :is(dialog, #dock-details) button:disabled { opacity: 1; color: var(--muted); }
 #reader-toolbar[data-expanded='true'] .dock-more { pointer-events: none; }.dock-category { pointer-events: auto; }
 .dock-command-list { max-height: min(430px, var(--dock-menu-max-height, calc(100dvh - 170px))); }
+
+/* The expanded dock stays icon-first; labels appear only when a tool is targeted. */
+.dock-category-name { display: none !important; }
+.dock-category::after, .dock-command-list button::after { content: attr(data-label); position: absolute; z-index: 3; left: 50%; bottom: calc(100% + 8px); width: max-content; max-width: min(260px, calc(100vw - 28px)); padding: 7px 10px; border-radius: 9px; color: var(--ink); background: color-mix(in srgb, var(--surface) 34%, transparent); box-shadow: 0 6px 24px #0003; backdrop-filter: blur(24px) saturate(155%); -webkit-backdrop-filter: blur(24px) saturate(155%); font-size: 11px; font-weight: 500; line-height: 1.35; text-align: center; white-space: normal; pointer-events: none; opacity: 0; transform: translate(-50%, 4px); transition: opacity 130ms ease, transform 130ms ease; }
+.dock-category::after { bottom: calc(100% + 5px); }
+.dock-category:hover::after, .dock-category:focus-visible::after, .dock-command-list button:hover::after, .dock-command-list button:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.dock-category { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 15px; }
+.dock-category-icon { position: static; width: 24px; height: 24px; transform: none; }
+.dock-category-icon .app-icon { display: block; width: 21px; height: 21px; }
+.dock-category:nth-child(1) { --side-offset: -322px; --side-top: 1px; }
+.dock-category:nth-child(2) { --side-offset: -242px; --side-top: 1px; }
+.dock-category:nth-child(3) { --side-offset: -162px; --side-top: 1px; }
+.dock-category:nth-child(4) { --side-offset: 162px; --side-top: 1px; }
+.dock-category:nth-child(5) { --side-offset: 242px; --side-top: 1px; }
+.dock-category:nth-child(6) { --side-offset: 322px; --side-top: 1px; }
+.dock-category:nth-child(7) { --side-offset: 0px; --side-top: -52px; }
+.dock-command-list { grid-template-columns: repeat(5, minmax(42px, 1fr)); justify-items: center; }
+.dock-command-list button { position: relative; justify-content: center; width: 44px; height: 42px; padding: 0; border-radius: 12px; }
+.dock-command-list button::after { bottom: calc(100% + 5px); }
+.dock-command-list .app-icon { width: 20px; height: 20px; }
+.dock-command-list button:disabled { opacity: .35; }
+@media(max-width:760px) {
+  .dock-category:nth-child(1), .dock-category:nth-child(2), .dock-category:nth-child(3) { --side-offset: -145px; }
+  .dock-category:nth-child(4), .dock-category:nth-child(5), .dock-category:nth-child(6) { --side-offset: 145px; }
+  .dock-category:nth-child(1), .dock-category:nth-child(4) { --side-top: -102px; }
+  .dock-category:nth-child(2), .dock-category:nth-child(5) { --side-top: -51px; }
+  .dock-category:nth-child(3), .dock-category:nth-child(6) { --side-top: 1px; }
+  .dock-category:nth-child(7) { --side-top: -153px; }
+  .dock-command-list { grid-template-columns: repeat(4, minmax(42px, 1fr)); }
+}
+@media(prefers-reduced-motion:reduce) { .dock-category::after, .dock-command-list button::after { transition: none; } }
+@media(prefers-reduced-transparency:reduce) { .dock-category::after, .dock-command-list button::after { background: var(--surface); backdrop-filter: none; } }

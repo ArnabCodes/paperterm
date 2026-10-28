@@ -8,4 +8,4 @@ if (result.status !== 0) {
   process.exit(result.status || 1);
 }
 mkdirSync('public', { recursive: true });
-copyFileSync('core/target/wasm32-unknown-unknown/release/paperterm_core.wasm', 'public/core.wasm');
+copyFileSync('core/target/wasm32-unknown-unknown/release/pipit_core.wasm', 'public/core.wasm');

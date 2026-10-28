@@ -26,7 +26,9 @@ try {
  await p.keyboard.press('=');await p.waitForFunction(()=>{const c=document.querySelector('#viewer-container'),v=document.querySelector('.pdfViewer .page[data-page-number="2"]');return Math.abs(v.clientWidth-c.clientWidth)<80;});
  assert.ok(p.url().includes('tutor=1'),'reading history must not navigate the browser tab');assert.deepEqual(errors,[]);if(size.width===1440)await p.screenshot({path:`${out}/return.png`});
  await p.keyboard.press('Shift+Q');assert.equal(await p.locator('.notebook-note').first().inputValue(),'Previously saved note');
- assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('paperterm.reading.31c7870ac620bf76247ea22d0ec51198')).bookmarks[0].name),'Existing bookmark');
+ assert.equal(await p.evaluate(()=>JSON.parse(localStorage.getItem('pipit.reading.31c7870ac620bf76247ea22d0ec51198')).bookmarks[0].name),'Existing bookmark');
+ assert.equal(await p.evaluate(()=>localStorage.getItem('paperterm.reading.31c7870ac620bf76247ea22d0ec51198')),null,'legacy reading key is migrated away');
+ assert.equal(await p.evaluate(()=>localStorage.getItem('paperterm.notebook.v1:31c7870ac620bf76247ea22d0ec51198')),null,'legacy notebook key is migrated away');
  console.log('PASS resumed lesson, relative history and existing tutorial notes at',size.width);await p.close();
  }
  const p=await browser.newPage({viewport:{width:1440,height:1000}});p.setDefaultTimeout(12000);await p.goto(entry);await p.locator('#tutor-start').click();await p.locator('#tutor-panel').waitFor();await p.locator('.tutor-levels summary').click();await p.locator('[data-mission="5"]').click();await ready(p);await pageIs(p,2);await p.keyboard.press('Enter');await pageIs(p,3);await p.keyboard.press('Backspace');await p.waitForFunction(()=>JSON.parse(window.render_game_to_text()).completed.includes('trail'));console.log('PASS direct lesson selection restores required equation preview');

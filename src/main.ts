@@ -25,6 +25,9 @@ import { initializeFileBrowser } from './file-browser';
 import { discoverPublisherPdfs, publisherPage } from './publisher-pdf';
 import { initializeTutor } from './tutor';
 import { initializeHardMode } from './hard-mode';
+import { initializePageEditor, imagesToPdf, type PageEditorController } from './page-editor';
+import { initializeVisualMode } from './visual-mode';
+import { initializeMarkupTools } from './markup-tools';
 
 element('#app').innerHTML = shell();
 const hardMode = initializeHardMode();
@@ -100,7 +103,189 @@ const notebook = initializeNotebook({
   getDocument: () => reader.document && !opening && fingerprint ? { id: fingerprint, name: fileName, page: reader.viewer.currentPageNumber, offset: reader.offset, pageCount: reader.document.numPages } : null,
   goTo,
   toast,
+  recordActivity: action => pageEditor.recordActivity(action),
+  closePreview: closePortal,
 });
+let pageEditor!: PageEditorController;
+let formHistoryBase: Uint8Array | null = null;
+let pendingFormHistoryBase: Uint8Array | null = null;
+let formHistoryTimer: number | undefined;
+
+async function flushFormHistory() {
+  window.clearTimeout(formHistoryTimer);
+  formHistoryTimer = undefined;
+  const pdf = reader.document;
+  const before = pendingFormHistoryBase;
+  if (!pdf || !before) return;
+  pendingFormHistoryBase = null;
+  try {
+    const saved = new Uint8Array(await pdf.saveDocument());
+    if (reader.document !== pdf) return;
+    pageEditor.recordExternalEdit(before, 'Fill PDF form fields');
+    formHistoryBase = saved;
+  } catch (error) {
+    pendingFormHistoryBase = before;
+    console.warn('Could not checkpoint PDF form edits.', error);
+  }
+}
+
+async function currentPdfBytes(): Promise<Uint8Array> {
+  const pdf = reader.document;
+  if (!pdf) throw new Error('Open a PDF first.');
+  if (pdf.annotationStorage.size) return new Uint8Array(await pdf.saveDocument());
+  return new Uint8Array(await pdf.getData());
+}
+
+async function editablePdfBytes(): Promise<Uint8Array> {
+  await flushFormHistory();
+  return currentPdfBytes();
+}
+
+async function watchFormEdits(pdf: NonNullable<typeof reader.document>) {
+  window.clearTimeout(formHistoryTimer);
+  formHistoryTimer = undefined;
+  pendingFormHistoryBase = null;
+  formHistoryBase = new Uint8Array(await pdf.getData());
+  if (reader.document !== pdf) return;
+  const storage = pdf.annotationStorage as unknown as { onSetModified: (() => void) | null };
+  storage.onSetModified = () => {
+    if (!pendingFormHistoryBase && formHistoryBase) pendingFormHistoryBase = new Uint8Array(formHistoryBase);
+    window.clearTimeout(formHistoryTimer);
+    formHistoryTimer = window.setTimeout(() => { void flushFormHistory(); }, 700);
+  };
+}
+
+pageEditor = initializePageEditor({
+  getDocument: () => reader.document && !opening && fingerprint ? { id: fingerprint, name: fileName, pageCount: reader.document.numPages, page: reader.viewer.currentPageNumber } : null,
+  getBytes: editablePdfBytes,
+  renderThumbnail: (page, canvas) => reader.renderThumbnail(page, canvas),
+  replace: async (bytes, page) => {
+    const previous = reader.document ? new Uint8Array(await reader.document.getData()) : null;
+    const previousName = fileName;
+    const base = previousName.replace(/\.pdf$/i, '').replace(/\s+\(edited\)$/i, '') || 'document';
+    const editedName = `${base} (edited).pdf`;
+    await openDocument(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }), editedName, undefined, false, true);
+    if (!reader.document && previous) await openDocument(new Blob([previous], { type: 'application/pdf' }), previousName);
+    if (!reader.document) return null;
+    reader.goTo(page); saveState();
+    return fingerprint || null;
+  },
+  goTo: page => reader.goTo(page),
+  toast,
+});
+const visualMode = initializeVisualMode({
+  lines: () => indexedLines, ready: () => indexed, page: () => reader.viewer.currentPageNumber, offset: () => reader.offset,
+  highlight: () => notebook.highlight(), note: () => notebook.capture(), toast,
+});
+type PendingMarkup = { kind: 'text' | 'signature'; dataUrl: string; x: number; y: number };
+let pendingMarkup: PendingMarkup | null = null;
+const placementHud = document.createElement('div');
+placementHud.className = 'placement-hud';
+placementHud.setAttribute('role', 'status');
+placementHud.hidden = true;
+document.body.append(placementHud);
+
+function renderMarkupMarker(pageNumber = reader.viewer.currentPageNumber) {
+  document.querySelectorAll('.page-markup-marker').forEach(marker => marker.remove());
+  if (!pendingMarkup) return;
+  const page = document.querySelector<HTMLElement>(`#viewer .page[data-page-number="${pageNumber}"]`);
+  if (!page) return;
+  const marker = document.createElement('div');
+  marker.className = 'page-markup-marker';
+  marker.style.left = `${pendingMarkup.x * 100}%`;
+  marker.style.top = `${pendingMarkup.y * 100}%`;
+  marker.setAttribute('aria-hidden', 'true');
+  page.append(marker);
+}
+
+function beginMarkupPlacement(kind: PendingMarkup['kind'], dataUrl: string) {
+  if (!reader.document) { toast('Open a PDF before adding text or a signature.'); return; }
+  pendingMarkup = { kind, dataUrl, x: .5, y: .5 };
+  placementHud.innerHTML = `${kind === 'text' ? 'Place text' : 'Place signature'} · click or use <kbd>h</kbd>/<kbd>l</kbd> and <kbd>↑</kbd>/<kbd>↓</kbd> · <kbd>j</kbd>/<kbd>k</kbd> scroll · <kbd>Enter</kbd> place · <kbd>Esc</kbd> cancel`;
+  placementHud.hidden = false;
+  renderMarkupMarker();
+  reader.container.focus({ preventScroll: true });
+}
+
+function decodeDataUrl(value: string): Uint8Array {
+  const encoded = value.slice(value.indexOf(',') + 1);
+  const binary = atob(encoded);
+  return Uint8Array.from(binary, character => character.charCodeAt(0));
+}
+
+async function commitMarkup(pageNumber = reader.viewer.currentPageNumber) {
+  const mark = pendingMarkup;
+  const pdfProxy = reader.document;
+  if (!mark || !pdfProxy) return;
+  pendingMarkup = null;
+  placementHud.hidden = true;
+  document.querySelectorAll('.page-markup-marker').forEach(marker => marker.remove());
+  try {
+    const pageProxy = await pdfProxy.getPage(pageNumber);
+    if (reader.document !== pdfProxy) throw new Error('The document changed before the mark was placed.');
+    const view = reader.viewer.getPageView(pageNumber - 1)?.div;
+    if (!view) throw new Error('The selected page is not ready. Try again after it appears.');
+    const viewport = pageProxy.getViewport({ scale: 1, rotation: (pageProxy.rotate + reader.viewer.pagesRotation) % 360 });
+    const scale = view.clientWidth / viewport.width;
+    const [x, y] = viewport.convertToPdfPoint(mark.x * view.clientWidth / scale, mark.y * view.clientHeight / scale);
+    const imageBytes = decodeDataUrl(mark.dataUrl);
+    const label = mark.kind === 'text' ? 'Add text stamp' : 'Add signature stamp';
+    pageEditor.applyEdit(label, pageNumber, async pdf => {
+      const page = pdf.getPage(pageNumber - 1);
+      const image = await pdf.embedPng(imageBytes);
+      const width = image.width / 4;
+      const height = image.height / 4;
+      const fit = Math.min(1, Math.max(.1, (page.getWidth() - 16) / width), Math.max(.1, (page.getHeight() - 16) / height));
+      const drawWidth = width * fit, drawHeight = height * fit;
+      page.drawImage(image, { x: Math.max(8, Math.min(page.getWidth() - drawWidth - 8, x)), y: Math.max(8, Math.min(page.getHeight() - drawHeight - 8, y - drawHeight)), width: drawWidth, height: drawHeight });
+    });
+  } catch (error) { toast(error instanceof Error ? error.message : 'Could not add that mark.'); }
+  reader.container.focus({ preventScroll: true });
+}
+
+reader.container.addEventListener('click', event => {
+  if (!pendingMarkup) return;
+  const target = event.target instanceof Element ? event.target.closest<HTMLElement>('.page[data-page-number]') : null;
+  if (!target || !reader.container.contains(target)) return;
+  event.preventDefault(); event.stopPropagation();
+  const rect = target.getBoundingClientRect();
+  pendingMarkup.x = Math.max(.03, Math.min(.97, (event.clientX - rect.left) / rect.width));
+  pendingMarkup.y = Math.max(.03, Math.min(.97, (event.clientY - rect.top) / rect.height));
+  void commitMarkup(Number(target.dataset.pageNumber));
+}, true);
+reader.container.addEventListener('keydown', event => {
+  if (!pendingMarkup) return;
+  if (event.key === 'Escape') {
+    event.preventDefault(); event.stopPropagation(); pendingMarkup = null; placementHud.hidden = true;
+    document.querySelectorAll('.page-markup-marker').forEach(marker => marker.remove());
+    toast('Text placement cancelled.'); return;
+  }
+  if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitMarkup(); return; }
+  const step = event.shiftKey ? .005 : .02;
+  if (['ArrowLeft', 'h', 'ArrowRight', 'l', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+    event.preventDefault(); event.stopPropagation();
+    if (event.key === 'ArrowLeft' || event.key === 'h') pendingMarkup.x = Math.max(.02, pendingMarkup.x - step);
+    if (event.key === 'ArrowRight' || event.key === 'l') pendingMarkup.x = Math.min(.98, pendingMarkup.x + step);
+    if (event.key === 'ArrowUp') pendingMarkup.y = Math.max(.02, pendingMarkup.y - step);
+    if (event.key === 'ArrowDown') pendingMarkup.y = Math.min(.98, pendingMarkup.y + step);
+    renderMarkupMarker();
+  }
+}, true);
+reader.bus.on('pagechanging', (event: { pageNumber: number }) => renderMarkupMarker(event.pageNumber));
+const markupTools = initializeMarkupTools({
+  placeText: dataUrl => beginMarkupPlacement('text', dataUrl),
+  placeSignature: dataUrl => beginMarkupPlacement('signature', dataUrl),
+  toast,
+});
+
+function focusFirstFormField() {
+  const fields = [...reader.container.querySelectorAll<HTMLElement>('.annotationLayer input, .annotationLayer textarea, .annotationLayer select, .xfaLayer input, .xfaLayer textarea, .xfaLayer select')]
+    .filter(field => !field.hasAttribute('disabled') && field.getClientRects().length > 0);
+  if (!fields.length) { toast('This PDF has no interactive form fields.'); return; }
+  fields[0].focus();
+  toast(`${fields.length} form field${fields.length === 1 ? '' : 's'} available. Use Tab and Shift+Tab to move between them.`);
+}
+
 const backward: Location[] = [];
 const forward: Location[] = [];
 let pendingPortalJump: { queuedHistory: boolean[] } | null = null;
@@ -121,8 +306,12 @@ let hintScrollLeft = 0;
 let selectedPdfText = '';
 let indexedLines: readonly TextLine[] = [];
 function tutorSavedNotes() {
-  const notes = readStored<unknown>(`paperterm.notebook.v1:${fingerprint}`, []);
+  const notes = readStored<unknown>(`pipit.notebook.v1:${fingerprint}`, []);
   return Array.isArray(notes) ? notes.filter(note => note && typeof note === 'object' && ((typeof note.note === 'string' && note.note.trim()) || (typeof note.excerpt === 'string' && note.excerpt.trim()))).length : 0;
+}
+function tutorSavedHighlights() {
+  const notes = readStored<unknown>(`pipit.notebook.v1:${fingerprint}`, []);
+  return Array.isArray(notes) ? notes.filter(note => note && typeof note === 'object' && (note as { kind?: unknown }).kind === 'highlight').length : 0;
 }
 const tutor = initializeTutor({
   hard: hardMode,
@@ -171,9 +360,10 @@ const tutor = initializeTutor({
     preview: !!portalTarget && !element('#portal').hidden && element<HTMLCanvasElement>('#portal-canvas').width > 0,
     previewPage: portalTarget?.page || 0, pinned: previewPinned, theme: preferences.theme,
     bookmarked: state.bookmarks.some(mark => mark.page === reader.viewer.currentPageNumber),
-    notes: tutorSavedNotes(),
+    notes: tutorSavedNotes(), highlights: tutorSavedHighlights(),
     ruler: !element('#reading-ruler').hidden, spread: reader.viewer.spreadMode,
     rulerPosition: parseFloat(element('#reading-ruler').style.top || '40'), focus: document.body.classList.contains('focus-mode'),
+    pageEdits: pageEditor.stats().edits, pageUndos: pageEditor.stats().undos,
     quickmarkPage: typeof state.marks.a === 'number' ? state.marks.a : state.marks.a?.page,
   }),
   jump: page => goTo(page), command: () => openPalette('commands'), focus: () => reader.container.focus(),
@@ -194,7 +384,7 @@ function saveState() {
   state.page = reader.viewer.currentPageNumber;
   state.offset = reader.offset;
   state.zoom = reader.viewer.currentScaleValue;
-  if (!saveStored(`paperterm.reading.${fingerprint}`, state)) toast('Browser storage is full. This reading position could not be saved.');
+  if (!saveStored(`pipit.reading.${fingerprint}`, state)) toast('Browser storage is full. This reading position could not be saved.');
 }
 
 function pushHistory() {
@@ -223,7 +413,10 @@ function historyMove(back: boolean) {
   if (back && Math.abs(reader.container.scrollTop - clamped) <= 3) tutor.returned(target.page);
 }
 
-async function openDocument(source: string | File | Blob, name = 'document.pdf', libraryId?: string, resolvePublisher = false) {
+async function openDocument(source: string | File | Blob, name = 'document.pdf', libraryId?: string, resolvePublisher = false, editedCopy = false) {
+  await flushFormHistory();
+  pageEditor.documentOpening();
+  visualMode.documentChanged();
   pendingPortalJump = null;
   originalPdfUrl = '';
   tutor.documentChanging();
@@ -234,6 +427,7 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
   const sequence = ++loadSequence;
   saveState();
   opening = true; indexed = false; hasText = false;
+  delete document.body.dataset.editedCopy;
   selectedPdfText = '';
   documentMap = buildDocumentMap([]); notebook.reset(); research.reset(); fieldMap.reset();
   indexedLines = [];
@@ -263,7 +457,7 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
     const pdf = await reader.load(bytes, 'auto', 1);
     if (!pdf || sequence !== loadSequence) return;
     fingerprint = pdf.fingerprints[0] || name;
-    state = readStored(`paperterm.reading.${fingerprint}`, defaultReadingState());
+    state = readStored(`pipit.reading.${fingerprint}`, defaultReadingState());
     if (!state || typeof state.page !== 'number' || !Array.isArray(state.bookmarks) || !state.marks) state = defaultReadingState();
     const requestedPage = initialHashConsumed ? 0 : Number(new URLSearchParams(location.hash.slice(1)).get('page'));
     initialHashConsumed = true;
@@ -276,9 +470,12 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
     if (requestedPage > 0) reader.goTo(requestedPage);
     else reader.restoreFraction(state.page, state.offset);
     fileName = name;
+    await watchFormEdits(pdf);
+    if (sequence !== loadSequence) return;
     document.title = `${name.replace(/\.pdf$/i, '')} — Pipit`;
     element('#document-name').textContent = name.replace(/\.pdf$/i, '');
-    element('#document-detail').textContent = `${pdf.numPages} pages · Your private reading space`;
+    element('#document-detail').textContent = editedCopy ? `${pdf.numPages} pages · Edited copy · original unchanged` : `${pdf.numPages} pages · Your private reading space`;
+    if (editedCopy) document.body.dataset.editedCopy = 'true';
     element('#page-total').textContent = String(pdf.numPages);
     element('#page-current').textContent = String(reader.viewer.currentPageNumber);
     outline = await reader.outline();
@@ -298,6 +495,7 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
     opening = false;
     element('#welcome').hidden = false; element('#reader').hidden = true; element('#reader-toolbar').hidden = true;
     document.body.classList.remove('has-document', 'focus-mode');
+    delete document.body.dataset.editedCopy;
     element('#document-name').textContent = 'Your reading workspace';
     element('#document-detail').textContent = 'A little less interface. A little more focus.';
     document.title = 'Pipit — a quiet PDF workspace';
@@ -325,12 +523,13 @@ reader.onPage = page => {
   clearTimeout(saveStateTimer);
   saveStateTimer = setTimeout(saveState, 250);
 };
-reader.onZoom = zoom => { element('#zoom-value').textContent = `${Math.round(zoom * 100)}%`; schedulePreview(); };
+reader.onZoom = zoom => { element('#zoom-value').textContent = `${Math.round(zoom * 100)}%`; schedulePreview(); notebook.refreshHighlights(); };
 reader.onMatches = (current, total) => { element('#find-count').textContent = total ? `${current} of ${total}` : 'No matches'; };
 reader.onIndex = (lines, complete) => {
   indexedLines = lines;
   documentMap = buildDocumentMap(lines); research.update();
   engine.index(lines); indexed = complete; hasText = lines.length > 0;
+  if (complete) notebook.refreshHighlights();
   element('#engine-status').textContent = complete ? hasText ? 'Local · Ready' : 'Image-only PDF' : 'Indexing references…';
   if (palette.open && ['equation', 'citation', 'figure'].includes(paletteMode)) void refreshChoices();
 };
@@ -437,7 +636,7 @@ function pinPreview() {
   setPanelWidth(panelWidth);
   void showPortal(portalTarget, undefined, true);
 }
-const storedPanelWidth = readStored<number>('paperterm.preview-width', 520);
+const storedPanelWidth = readStored<number>('pipit.preview-width', 520);
 let panelWidth = typeof storedPanelWidth === 'number' && Number.isFinite(storedPanelWidth) ? storedPanelWidth : 520;
 const resizer = element('#portal-resizer');
 resizer.title = 'Drag to resize; Left and Right arrows adjust the width';
@@ -466,7 +665,7 @@ resizer.addEventListener('pointermove', event => {
 });
 function finishPanelDrag() {
   panelDrag = null; document.body.classList.remove('resizing-preview');
-  saveStored('paperterm.preview-width', panelWidth); schedulePreview();
+  saveStored('pipit.preview-width', panelWidth); schedulePreview();
 }
 resizer.addEventListener('pointerup', finishPanelDrag);
 resizer.addEventListener('pointercancel', finishPanelDrag);
@@ -476,7 +675,7 @@ resizer.addEventListener('keydown', event => {
   event.preventDefault(); event.stopPropagation();
   const { minimum, maximum } = panelLimits();
   setPanelWidth(event.key === 'Home' ? minimum : event.key === 'End' ? maximum : panelWidth + (event.key === 'ArrowLeft' ? 32 : -32));
-  saveStored('paperterm.preview-width', panelWidth); schedulePreview();
+  saveStored('pipit.preview-width', panelWidth); schedulePreview();
 });
 window.addEventListener('resize', () => { sizePreview(); setPanelWidth(panelWidth); schedulePreview(); });
 setPanelWidth(panelWidth);
@@ -520,6 +719,14 @@ const commands = [
   { title: 'HardMode', detail: 'Toggle keyboard-only mode; Ctrl Shift F12 always exits. Resets on reload', key: 'Ctrl Shift F12', action: 'hard-mode', global: true },
   { title: 'Focus reference preview', detail: 'Move keyboard focus into the reference lens', key: 'g i', action: 'focus-preview' },
   { title: 'Focus document', detail: 'Return keyboard focus to the main paper', key: 'g m', action: 'focus-document' },
+  { title: 'Arrange pages', detail: 'Open every page thumbnail to reorder, rotate, remove, copy or insert PDF pages and images', key: 'g I', action: 'pages' },
+  { title: 'Add text to PDF copy', detail: 'Create a visible text stamp, then place it with the mouse or keyboard. Existing PDF text is not rewritten.', key: ': Add text', action: 'add-text' },
+  { title: 'Add signature stamp', detail: 'Draw a signature or type your name, then place a visible image stamp. This is not a certificate-backed digital signature.', key: ': Sign', action: 'sign' },
+  { title: 'Focus PDF form fields', detail: 'Move to the first interactive PDF form field; use Tab and Shift+Tab to fill the rest.', key: 'Tab', action: 'form-fill' },
+  { title: 'Undo last PDF edit', detail: 'Undo page operations, added text or signature stamps, and recent PDF form field changes.', key: ': Undo edit', action: 'edit-undo' },
+  { title: 'Redo PDF edit', detail: 'Redo the most recently undone document edit.', key: ': Redo edit', action: 'edit-redo' },
+  { title: 'View edit history', detail: 'See timestamped page, form, stamp, highlight and notebook activity for this document.', key: ': Edit history', action: 'edit-history' },
+  { title: 'Visual mode', detail: 'Select PDF text line by line with j/k; y copies, h highlights, n adds a note, Escape exits', key: 'v', action: 'visual-mode' },
   { title: 'Tutor', detail: 'Start or resume a guided PDF expedition with missions, hints and local progress', key: ':Tutor', action: 'tutor', global: true },
   { title: 'All commands', detail: 'Search every action, setting, and reading theme', key: ':', action: 'commands', global: true },
   { title: 'Show reading dock', detail: 'Reveal controls and move keyboard focus to the dock', key: 'F6', action: 'dock' },
@@ -542,7 +749,7 @@ const commands = [
   { title: 'Find in document', detail: 'Search selectable text', key: '/', action: 'search' },
   { title: 'Find equation', detail: 'Look up a number and preview its definition', key: 'e', action: 'equation' },
   { title: 'Find citation', detail: 'Search reference numbers, author names, or titles', key: 'c', action: 'citation' },
-  { title: 'Find figure or table', detail: 'Find captions in the document', key: 'v', action: 'figure' },
+  { title: 'Find figure or table', detail: 'Find captions in the document', key: 'g v', action: 'figure' },
   { title: 'Peek at selected reference', detail: 'Select an equation, citation, or figure number for a floating quick look', key: 'Alt Enter', action: 'peek-selection' },
   { title: 'Jump to selected reference', detail: 'Follow the selected equation, citation, or figure and keep a return point', key: 'Alt Shift Enter', action: 'jump-selection' },
   { title: 'Pin reference preview', detail: 'Keep the quick look beside the paper while reading', key: 'Shift P', action: 'pin-portal' },
@@ -575,13 +782,13 @@ const commands = [
   { title: 'Reading ruler', detail: 'A movable line to guide your eyes', key: 'r', action: 'ruler' },
   { title: 'Fit page width', detail: 'Make the text comfortable to read', key: 'w / =', action: 'fit-width' },
   { title: 'Smart width', detail: 'Fit the current page’s text bounds, excluding outer margins; scans use page width', key: 'Shift W', action: 'smart-width' },
-  { title: 'Toggle Vimium compatibility', detail: 'Leave plain navigation and tab keys to Vimium; use Ctrl K for PDF commands', key: '', action: 'vimium', global: true },
+  { title: 'Vimium compatibility', detail: 'Leave plain navigation to Vimium; use the colon command menu for Pipit actions', key: ': Vimium', action: 'vimium', global: true },
   { title: 'Fit whole page', detail: 'See the page in context', key: 'a', action: 'fit-page' },
   { title: 'Rotate clockwise', detail: 'Rotate every page by 90 degrees', key: 'Shift R', action: 'rotate' },
   { title: 'Two-page spread', detail: 'Toggle single and facing pages', key: '', action: 'spread' },
   { title: 'Reading settings', detail: 'Themes, page colors, and palette replacements', key: ',', action: 'settings', global: true },
   { title: 'Cycle reading theme', detail: 'Move through the full light and dark theme collection', key: 'g d', action: 'theme', global: true },
-  { title: 'Download original PDF', detail: 'Save an unmodified copy', key: '', action: 'download' },
+  { title: 'Save edited PDF copy', detail: 'Save the current PDF, including supported form field changes and page edits, without changing the source file.', key: 'g D', action: 'download' },
   { title: 'Keyboard guide', detail: 'A shortcut to everywhere', key: '?', action: 'help', global: true },
   ...themes.map(theme => ({ title: `Theme: ${theme.name}`, detail: `${theme.mode === 'light' ? 'Light' : 'Dark'} reading palette`, key: '', action: `theme:${theme.id}`, global: true })),
 ].map(command => ({ ...command, global: 'global' in command && command.global, key: displayShortcut(command.action, command.key) }));
@@ -596,6 +803,8 @@ function actionAvailable(action: string) {
   if (action === 'preview-previous-page') return !!portalTarget && portalTarget.page > 1;
   if (action === 'preview-next-page') return !!portalTarget && portalTarget.page < (reader.document?.numPages || 0);
   if (action === 'portal-backlinks') return !!portalTarget?.citation;
+  if (action === 'edit-undo') return pageEditor.canUndo();
+  if (action === 'edit-redo') return pageEditor.canRedo();
   if (['portal-jump', 'pin-portal', 'close-portal', 'preview-page'].includes(action)) return !!portalTarget;
   return true;
 }
@@ -713,7 +922,7 @@ function applyPreferences() {
   const paper = preferences.palette.find(entry => entry.from.toLowerCase() === '#ffffff')?.to || (preferences.recolor ? preferences.background : '#ffffff');
   document.documentElement.style.setProperty('--pdf-background', paper);
   reader.applyPreferences(preferences);
-  saveStored('paperterm.preferences.v2', preferences);
+  saveStored('pipit.preferences.v2', preferences);
   element<HTMLInputElement>('#background-color').value = preferences.background;
   element<HTMLInputElement>('#foreground-color').value = preferences.foreground;
   element<HTMLInputElement>('#recolor-toggle').checked = preferences.recolor;
@@ -732,7 +941,8 @@ function renderMappings() {
 
 async function download() {
   if (!reader.document) return;
-  const bytes = await reader.document.getData();
+  await flushFormHistory();
+  const bytes = await currentPdfBytes();
   const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
@@ -745,7 +955,8 @@ async function openPrintPdf() {
   const printTab = window.open('about:blank', '_blank');
   if (!printTab) { toast('Allow pop-ups for Pipit to open the print-ready PDF.'); return; }
   try {
-    const bytes = await reader.document.getData();
+    await flushFormHistory();
+    const bytes = await currentPdfBytes();
     const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
     printTab.location.replace(url);
     const cleanup = window.setInterval(() => {
@@ -883,6 +1094,14 @@ function runAction(action: string) {
     case 'focus-preview': if (portalTarget) element('#portal-scroll').focus(); break;
     case 'focus-document': reader.container.focus(); break;
     case 'tutor': tutor.open(); break;
+    case 'pages': pageEditor.open(); break;
+    case 'add-text': markupTools.addText(); break;
+    case 'sign': markupTools.sign(); break;
+    case 'form-fill': focusFirstFormField(); break;
+    case 'edit-undo': pageEditor.undo(); break;
+    case 'edit-redo': pageEditor.redo(); break;
+    case 'edit-history': pageEditor.openHistory(); break;
+    case 'visual-mode': visualMode.start(); break;
     case 'open': void openFileBrowser(); break;
     case 'demo': void openDocument(new URL('sample.pdf', document.baseURI).href, 'The art of following an idea.pdf'); break;
     case 'commands': case 'url': case 'page': case 'equation': case 'citation': case 'figure': case 'recent': case 'contents': case 'passage': case 'colors': case 'mapping': openPalette(action); break;
@@ -910,7 +1129,7 @@ function runAction(action: string) {
     }
     case 'fit-width': reader.viewer.currentScaleValue = 'page-width'; saveState(); break;
     case 'smart-width': void reader.smartWidth().then(saveState).catch(fail); break;
-    case 'vimium': vimiumMode = !vimiumMode; saveStored('paperterm.vimium', vimiumMode); element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode; toast(vimiumMode ? 'Vimium owns plain navigation keys. Use Ctrl+K for PDF commands; Backspace returns through the paper.' : 'Reader keyboard shortcuts enabled. x and X remain reserved for browser tabs.'); break;
+    case 'vimium': vimiumMode = !vimiumMode; saveStored('pipit.vimium', vimiumMode); element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode; toast(vimiumMode ? 'Vimium owns plain navigation keys. Use : to search Pipit commands, including Visual mode.' : 'Reader keyboard shortcuts enabled. x and X remain reserved for browser tabs.'); break;
     case 'fit-page': reader.viewer.currentScaleValue = 'page-fit'; saveState(); break;
     case 'rotate': reader.viewer.pagesRotation = (reader.viewer.pagesRotation + 90) % 360; closeHints(); break;
     case 'spread': reader.viewer.spreadMode = reader.viewer.spreadMode ? 0 : 1; break;
@@ -1106,7 +1325,14 @@ document.addEventListener('click', event => {
 
 document.addEventListener('change', event => {
   const target = event.target as HTMLInputElement;
-  if (target.id === 'file-input') { const file = target.files?.[0]; if (file) void openDocument(file, file.name); target.value = ''; }
+  if (target.id === 'file-input') {
+    const file = target.files?.[0];
+    if (file && (file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|avif|tiff?)$/i.test(file.name))) {
+      if (reader.document) pageEditor.importFiles([file]);
+      else void imagesToPdf([file]).then(bytes => openDocument(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }), `${file.name.replace(/\.[^.]+$/, '')}.pdf`)).catch(fail);
+    } else if (file) void openDocument(file, file.name);
+    target.value = '';
+  }
   if (target.id === 'background-color') { preferences.background = target.value; preferences.recolor = true; applyPreferences(); }
   if (target.id === 'foreground-color') { preferences.foreground = target.value; preferences.recolor = true; applyPreferences(); }
   if (target.id === 'recolor-toggle') { preferences.recolor = target.checked; applyPreferences(); }
@@ -1121,11 +1347,12 @@ function startPrefix(value: string) {
   if (value === "'") toast('Go to mark: press a letter a–z');
 }
 
-let vimiumMode = readStored<boolean>('paperterm.vimium', false);
+let vimiumMode = readStored<boolean>('pipit.vimium', false);
 element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode;
 element('#vimium-toggle').addEventListener('change', () => runAction('vimium'));
 window.addEventListener('keydown', event => {
   if (event.isComposing) return;
+  if (visualMode.handleKey(event)) return;
   const target = event.target instanceof HTMLElement ? event.target : document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
   const typing = !(tutor.active() && (target.matches('#tutor-keyboard, #tutor-preview-keyboard') || !!target.closest('#tutor-panel'))) && (target.matches('input, textarea, select') || target.isContentEditable);
   const modifier = event.ctrlKey || event.metaKey;
@@ -1184,7 +1411,7 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Enter' && portalTarget && !target.closest('button, summary, a, [role="button"]') && !modifier && !event.altKey) { event.preventDefault(); runAction('portal-jump'); return; }
   if (modifier || event.altKey) return;
   if (['d', 'u'].includes(event.key) && reader.document) { event.preventDefault(); const container = (portalTarget && !previewPinned) || target.closest('#portal') ? element('#portal-scroll') : reader.container; container.scrollBy({ top: container.clientHeight * (event.key === 'd' ? .5 : -.5), behavior: 'instant' }); return; }
-  const actions: Record<string, string> = { o: 'open', O: 'recent', '?': 'help', ',': 'settings', '/': 'search', ':': 'commands', p: 'page', P: 'pin-portal', e: 'equation', c: 'citation', v: 'figure', q: 'capture', Q: 'notebook', t: 'sidebar', b: 'bookmark', B: 'bookmarks', z: 'focus', r: 'ruler', R: 'rotate', w: 'fit-width', W: 'smart-width', a: 'fit-page', f: 'links', F: 'preview-links', s: 'smart-hints', '+': 'zoom-in', '=': 'fit-width', '-': 'zoom-out' };
+  const actions: Record<string, string> = { o: 'open', O: 'recent', '?': 'help', ',': 'settings', '/': 'search', ':': 'commands', p: 'page', P: 'pin-portal', e: 'equation', c: 'citation', v: 'visual-mode', q: 'capture', Q: 'notebook', t: 'sidebar', b: 'bookmark', B: 'bookmarks', z: 'focus', r: 'ruler', R: 'rotate', w: 'fit-width', W: 'smart-width', a: 'fit-page', f: 'links', F: 'preview-links', s: 'smart-hints', '+': 'zoom-in', '=': 'fit-width', '-': 'zoom-out' };
   if (actions[event.key]) { event.preventDefault(); runAction(actions[event.key]); return; }
   if (event.key === 'g') { event.preventDefault(); startPrefix('g'); return; }
   if (!reader.document) return;
@@ -1212,7 +1439,19 @@ let dragDepth = 0;
 document.addEventListener('dragenter', event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); dragDepth++; element('#drop-overlay').hidden = false; } });
 document.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('Files')) event.preventDefault(); });
 document.addEventListener('dragleave', () => { dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) element('#drop-overlay').hidden = true; });
-document.addEventListener('drop', event => { event.preventDefault(); dragDepth = 0; element('#drop-overlay').hidden = true; const file = event.dataTransfer?.files[0]; if (file) void openDocument(file, file.name); });
+document.addEventListener('drop', event => {
+  event.preventDefault(); dragDepth = 0; element('#drop-overlay').hidden = true;
+  const files = [...(event.dataTransfer?.files || [])];
+  const pdf = files.find(file => file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
+  const images = files.filter(file => file.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|avif|tiff?)$/i.test(file.name));
+  if (pdf) { void openDocument(pdf, pdf.name); return; }
+  if (!images.length) return;
+  if (reader.document) { pageEditor.importFiles(images); return; }
+  void imagesToPdf(images).then(bytes => {
+    const base = images.length === 1 ? images[0].name.replace(/\.[^.]+$/, '') : 'Images';
+    return openDocument(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }), `${base}.pdf`);
+  }).catch(fail);
+});
 window.addEventListener('beforeunload', saveState);
 
 function renderShortcutGuide() {

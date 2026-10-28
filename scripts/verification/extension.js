@@ -31,7 +31,7 @@ async (page) => {
     assert((await explicitDownload).suggestedFilename().endsWith('.pdf'), 'Explicit Download button still saves a PDF');
     await page.goto('http://127.0.0.1:4180/html.pdf');
     const bypassDownload = page.waitForEvent('download');
-    await page.goto('http://127.0.0.1:4180/attachment?paperterm-download=1').catch(() => {});
+    await page.goto('http://127.0.0.1:4180/attachment?pipit-download=1').catch(() => {});
     assert((await bypassDownload).suggestedFilename() === 'guide.pdf', 'Explicit URL download bypass is preserved');
   } finally { page.off('download', recordDownload); }
   return { passed: checks.length, checks };

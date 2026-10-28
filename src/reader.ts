@@ -42,7 +42,9 @@ export class Reader {
     this.preferences = preferences;
     this.links = new PDFLinkService({ eventBus: this.bus, externalLinkTarget: 2, externalLinkRel: 'noopener noreferrer', ignoreDestinationZoom: true });
     const findController = new PDFFindController({ eventBus: this.bus, linkService: this.links });
-    this.viewer = new PDFViewer({ container, viewer: document.querySelector<HTMLDivElement>('#viewer')!, eventBus: this.bus, linkService: this.links, findController, removePageBorders: true, textLayerMode: 1, annotationMode: 1, enableDetailCanvas: false, imageResourcesPath: new URL('vendor/images/', document.baseURI).href, maxCanvasPixels: 8_000_000 });
+    // Keep ordinary annotations in the page render while leaving interactive
+    // AcroForm widgets in PDF.js's HTML annotation layer so they can be filled.
+    this.viewer = new PDFViewer({ container, viewer: document.querySelector<HTMLDivElement>('#viewer')!, eventBus: this.bus, linkService: this.links, findController, removePageBorders: true, textLayerMode: 1, annotationMode: 2, enableDetailCanvas: false, imageResourcesPath: new URL('vendor/images/', document.baseURI).href, maxCanvasPixels: 8_000_000 });
     this.links.setViewer(this.viewer);
     this.bus.on('pagerender', (event: { source: { canvas?: HTMLCanvasElement; div: HTMLDivElement } }) => {
       const canvas = event.source.canvas;
@@ -163,6 +165,24 @@ export class Reader {
 
   find(query: string, previous = false, again = false) {
     this.bus.dispatch('find', { source: this, type: again ? 'again' : '', query, phraseSearch: true, caseSensitive: false, entireWord: false, highlightAll: true, findPrevious: previous, matchDiacritics: false });
+  }
+
+  async renderThumbnail(pageNumber: number, canvas: HTMLCanvasElement) {
+    const pdf = this.document, generation = this.generation;
+    if (!pdf || !Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) return;
+    const page = await pdf.getPage(pageNumber);
+    if (pdf !== this.document || generation !== this.generation || !canvas.isConnected) return;
+    const base = page.getViewport({ scale: 1, rotation: (page.rotate + this.viewer.pagesRotation) % 360 });
+    const cssScale = Math.min(124 / base.width, 164 / base.height);
+    const ratio = Math.min(window.devicePixelRatio || 1, 1.5, Math.sqrt(240_000 / (base.width * base.height * cssScale * cssScale)));
+    const viewport = page.getViewport({ scale: cssScale * ratio, rotation: (page.rotate + this.viewer.pagesRotation) % 360 });
+    canvas.width = Math.max(1, Math.round(viewport.width));
+    canvas.height = Math.max(1, Math.round(viewport.height));
+    canvas.style.width = `${viewport.width / ratio}px`;
+    canvas.style.height = `${viewport.height / ratio}px`;
+    const task = page.render({ canvas, viewport, annotationMode: 0 });
+    try { await task.promise; }
+    catch (error) { if (pdf === this.document && generation === this.generation) throw error; }
   }
 
   get location(): Location {

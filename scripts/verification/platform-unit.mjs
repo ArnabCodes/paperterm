@@ -46,13 +46,12 @@ await check('web app never closes tabs through extension APIs', async () => {
 const details = { type: 'main_frame', method: 'GET', statusCode: 200, url: 'https://example.org/no-suffix?q=1#page=3', responseHeaders: [{ name: 'Content-Type', value: 'Application/PDF; charset=binary' }] };
 await check('Firefox identifies successful PDF MIME responses without filename guessing', () => assert.ok(isPdfResponse(details)));
 await check('HTML, subframes, POST, errors and bypass are not intercepted', () => {
-  for (const change of [{ responseHeaders: [{ name: 'content-type', value: 'text/html' }] }, { type: 'sub_frame' }, { method: 'POST' }, { statusCode: 404 }, { url: 'https://example.org/a.pdf?paperterm-download=1' }]) assert.equal(isPdfResponse({ ...details, ...change }), false);
+  for (const change of [{ responseHeaders: [{ name: 'content-type', value: 'text/html' }] }, { type: 'sub_frame' }, { method: 'POST' }, { statusCode: 404 }, { url: 'https://example.org/a.pdf?pipit-download=1' }]) assert.equal(isPdfResponse({ ...details, ...change }), false);
 });
 await check('bypass requires the actual parameter, not a matching substring', () => {
-  assert.ok(isDownloadBypass('https://example.org/paper?a=1&paperterm-download=1#page=2'));
+  assert.ok(isDownloadBypass('https://example.org/paper?a=1&pipit-download=1#page=2'));
   assert.ok(isDownloadBypass('https://example.org/paper?pipit-download=1'));
   assert.equal(isDownloadBypass('https://example.org/paper?x=pipit-download=1'), false);
-  assert.equal(isDownloadBypass('https://example.org/paper?x=paperterm-download=1'), false);
 });
 await check('viewer handoff preserves complete source queries and fragments', () => {
   const runtime = { getURL: file => `moz-extension://own/${file}` };
@@ -92,7 +91,7 @@ await check('Safari sends HTML to article discovery rather than guessing PDF fro
   await callbacks.action({ url: 'https://example.org/html.pdf' }); assert.equal(opened.at(-1), 'safari-web-extension://own/index.html?article=https%3A%2F%2Fexample.org%2Fhtml.pdf');
 });
 await check('Safari link context menu provides explicit handoff without interception', () => {
-  callbacks.context({ menuItemId: 'paperterm-open-link', linkUrl: details.url }); assert.equal(opened.at(-1), `safari-web-extension://own/index.html?source=${details.url}`);
+  callbacks.context({ menuItemId: 'pipit-open-link', linkUrl: details.url }); assert.equal(opened.at(-1), `safari-web-extension://own/index.html?source=${details.url}`);
 });
 globalThis.fetch = nativeFetch; delete globalThis.browser;
 for (const target of ['chrome', 'firefox']) await check(`${target} toolbar hands off article URLs and respects explicit downloads`, async () => {

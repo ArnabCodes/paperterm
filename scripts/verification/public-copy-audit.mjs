@@ -14,5 +14,5 @@ for (const path of ['index.html', 'docs/index.html', 'privacy.html', 'release-no
   assert.doesNotMatch(html, /blinking text caret|caret-browsing|browser-wide accessibility|\bF7\b|reported ScienceDirect|private development repository|runtime validation remains open|Generated from the reader’s current command definitions/i, path);
 }
 const docs = copy.get('docs/index.html');
-for (const phrase of ['unsigned', 'system folder-permission picker', 'not annotations embedded', 'No access controls are bypassed', 'no built-in OCR']) assert.ok(docs.includes(phrase), `Relevant user limit retained: ${phrase}`);
+for (const phrase of ['unsigned', 'system folder-permission picker', 'not embedded in the PDF', 'No access controls are bypassed', 'no built-in OCR']) assert.ok(docs.includes(phrase), `Relevant user limit retained: ${phrase}`);
 console.log('Public copy audit passes for all five pages and three text-bearing scripts; product limits are retained.');

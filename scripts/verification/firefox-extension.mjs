@@ -48,7 +48,7 @@ try {
   await call('POST', '/window/rect', { width: 1440, height: 960 });
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
   const addon = await call('POST', '/moz/addon/install', { path: resolve(`artifacts/pipit-${version}-firefox.xpi`), temporary: true });
-  check(addon === 'paperterm@arnabcodes', 'Unsigned Firefox development XPI installs temporarily');
+  check(addon === 'pipit@arnabcodes', 'Unsigned Firefox development XPI installs temporarily');
   await navigate('http://127.0.0.1:4180/paper?first=one&second=two#page=3');
   await wait('document.querySelector("#page-total")?.textContent === "6" && document.querySelector("#engine-status")?.textContent.includes("Ready") && document.querySelector("#loading")?.hidden && document.querySelector("#page-current")?.textContent === "3"', 'PDF interception and initial page restoration');
   const url = await execute('return location.href');
@@ -176,7 +176,7 @@ try {
   await key('g'); await key('D');
   for (let attempt = 0; attempt < 100 && !readdirSync(downloads).some(name => name.endsWith('.pdf')); attempt++) await pause(100);
   check(readdirSync(downloads).some(name => name.endsWith('.pdf')), 'Explicit download still saves the original PDF');
-  await navigate('http://127.0.0.1:4180/paper?paperterm-download=1');
+  await navigate('http://127.0.0.1:4180/paper?pipit-download=1');
   check((await execute('return location.href')).startsWith('http:'), 'Download bypass leaves the browser in control');
   await navigate(pathToFileURL(resolve('dist/sample.pdf')).href);
   await pause(1000);

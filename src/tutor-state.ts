@@ -1,6 +1,6 @@
 export interface TutorSnapshot {
   ready: boolean; page: number; query: string; matches: number; preview: boolean; previewPage: number; pinned: boolean;
-  theme: string; bookmarked: boolean; notes: number; ruler: boolean; spread: number; returns: number; down?: number; up?: number; quickmarkPage?: number; rulerPosition?: number; focus?: boolean;
+  theme: string; bookmarked: boolean; notes: number; highlights?: number; ruler: boolean; spread: number; returns: number; down?: number; up?: number; quickmarkPage?: number; rulerPosition?: number; focus?: boolean; pageEdits?: number; pageUndos?: number;
 }
 export interface TutorProgress { completed: string[]; skipped: string[] }
 export const tutorMissions = [
@@ -20,6 +20,8 @@ export const advancedMissions = [
   { id: 'quickmark', title: 'Make a secret waypoint', xp: 30, page: 2, text: 'Mark this spot, visit page 3, then return to your waypoint.', hint: "Press m then a to save mark a. Press p, type 3 and press Enter. Then press the apostrophe key followed by a to return to your mark." },
   { id: 'ruler-adjust', title: 'Steer the reading beam', xp: 20, page: 3, text: 'Move the reading ruler down the page with the keyboard.', hint: 'Press ] to reveal the ruler and move it down. Press [ to move it back up. Press r later to hide it.' },
   { id: 'focus', title: 'Clear the flight deck', xp: 20, page: 4, text: 'Enter distraction-free focus mode.', hint: 'Press lowercase z to enter focus mode. Press z again afterward to restore the controls.' },
+  { id: 'markup-highlight', title: 'Mark a research passage', xp: 25, page: 1, text: 'Select a line and save a local highlight using only the keyboard.', hint: 'Press v for Visual mode. Press j once to extend the selection down a line, then h to save the highlight. It appears in your Notebook sidecar; it does not alter the PDF file.' },
+  { id: 'edit-copy', title: 'Edit a safe copy', xp: 35, page: 1, text: 'Rotate the selected page, then undo the edit. The original PDF stays untouched.', hint: 'Press g, then uppercase I to open Pages. Press r to rotate the selected page. Wait for the edited copy to reopen, then press Ctrl+Z (⌘+Z on Mac) to undo. Watch the edit counter and the page thumbnail.' },
 ] as const;
 export const relayMissionIds = ['move', 'navigate', 'theme', 'ruler', 'spread', 'quickmark', 'ruler-adjust', 'focus'] as const;
 export const tutorMaxXp = tutorMissions.reduce((sum, mission) => sum + mission.xp, 0);
@@ -49,12 +51,14 @@ export function tutorMissionPassed(id: string, before: TutorSnapshot, after: Tut
     case 'quickmark': return after.quickmarkPage === before.page && after.page === before.page;
     case 'ruler-adjust': return after.ruler && after.rulerPosition !== before.rulerPosition;
     case 'focus': return !!after.focus && !before.focus;
+    case 'edit-copy': return (after.pageEdits || 0) > (before.pageEdits || 0) && (after.pageUndos || 0) > (before.pageUndos || 0);
+    case 'markup-highlight': return (after.highlights || 0) > (before.highlights || 0);
     default: return false;
   }
 }
 export const tutorKeys: Readonly<Record<string, readonly string[]>> = {
   move:['j','k'], navigate:['p','Enter'], search:['/'], preview:['e','Enter'], pin:['P'],
-  quickmark:['m','a','p','Enter',"'",'a'], 'ruler-adjust':[']'], focus:['z'],
+  quickmark:['m','a','p','Enter',"'",'a'], 'ruler-adjust':[']'], focus:['z'], 'markup-highlight':['v','j','h'], 'edit-copy':['g','I','r','Mod+z'],
   trail:['Enter','g','h'], theme:['g','d'], bookmark:['b'], notes:['Q','Mod+Enter'], ruler:['r'], spread:['g','2'],
 };
 export function tutorKeyboardPassed(id: string, pressed: readonly string[]) {

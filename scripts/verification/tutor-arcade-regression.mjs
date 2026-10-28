@@ -8,7 +8,7 @@ try {
   for (const [width,height,forwarded,coach] of [[1280,720,false,false],[1920,1080,false,true],[2560,1600,true,false],[1024,600,true,true]]) {
     const page = await browser.newPage({viewport:{width,height}}), errors=[];
     page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));
-    await page.addInitScript(()=>localStorage.setItem('paperterm.vimium','true'));
+    await page.addInitScript(()=>localStorage.setItem('pipit.vimium','true'));
     await page.goto(url);await page.locator('#tutor-start').waitFor();
     assert.equal(await page.evaluate(()=>document.activeElement.id),'tutor-start','Enter starts without navigating a radio group');
     if(width===1280)await page.screenshot({path:`${output}/intro.png`});

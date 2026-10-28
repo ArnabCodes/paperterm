@@ -56,7 +56,7 @@ async (page) => {
     const resizeState = await handle.evaluate(node => ({ value: node.getAttribute('aria-valuenow'), focus: document.activeElement.id, minimum: node.getAttribute('aria-valuemin') }));
     assert(Math.abs(resized.width - (width - 32)) < 1, `Side preview width can also be adjusted with arrow keys (${JSON.stringify({ width, resized: resized.width, ...resizeState })})`);
     const savedWidth = (await preview.boundingBox()).width;
-    assert(Math.abs(await page.evaluate(() => JSON.parse(localStorage.getItem('paperterm.preview-width'))) - savedWidth) < 1, 'User-selected side preview width is saved locally');
+    assert(Math.abs(await page.evaluate(() => JSON.parse(localStorage.getItem('pipit.preview-width'))) - savedWidth) < 1, 'User-selected side preview width is saved locally');
     await page.keyboard.press('End');
     assert((await page.locator('#viewer-container').boundingBox()).width >= 270, 'Resize limits preserve room for the main document');
     await page.keyboard.press('P'); await ready();

@@ -9,6 +9,11 @@ const document = { id: 'pdf-fingerprint', name: 'Research paper.pdf' };
 let checks = 0;
 const check = (name, run) => { run(); checks++; console.log(`PASS ${name}`); };
 check('Notebook sidecar round trip preserves Unicode, anchors and literal text', () => assert.deepEqual(parseNotebookSidecar(notebookSidecar(document, [entry]), document.id, 3), [entry]));
+check('Note timestamps survive portable backup round trips', () => {
+  const timestamped = { ...entry, createdAt: 1_790_000_000_000, updatedAt: 1_790_000_123_000 };
+  assert.deepEqual(parseNotebookSidecar(notebookSidecar(document, [timestamped]), document.id, 3), [timestamped]);
+});
+check('Invalid note timestamps are rejected', () => assert.throws(() => parseNotebookSidecar(notebookSidecar(document, [{ ...entry, updatedAt: Infinity }]), document.id)));
 check('Sidecar explicitly identifies non-embedded annotation mode', () => assert.equal(JSON.parse(notebookSidecar(document, [])).annotationMode, 'sidecar-only'));
 check('Wrong-document imports are rejected', () => assert.throws(() => parseNotebookSidecar(notebookSidecar(document, [entry]), 'other')));
 check('Out-of-range page anchors are rejected', () => assert.throws(() => parseNotebookSidecar(notebookSidecar(document, [entry]), document.id, 1)));

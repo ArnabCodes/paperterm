@@ -1,5 +1,5 @@
 export function isDownloadBypass(value) {
-  try { const query = new URL(value).searchParams; return ['pipit-download', 'paperterm-download'].some(key => query.getAll(key).includes('1')); } catch { return true; }
+  try { const query = new URL(value).searchParams; return query.getAll('pipit-download').includes('1'); } catch { return true; }
 }
 
 export function viewerUrl(runtime, source) {
@@ -31,7 +31,7 @@ export function isPdfResponse(details, extensionId) {
 }
 
 export function installContextMenu(api) {
-  const id = 'paperterm-open-link';
+  const id = 'pipit-open-link';
   const register = async () => {
     try { await api.contextMenus.removeAll(); await api.contextMenus.create({ id, title: 'Open PDF link in Pipit', contexts: ['link'], targetUrlPatterns: ['http://*/*', 'https://*/*'] }); }
     catch (error) { console.error('Pipit link menu unavailable:', error); }

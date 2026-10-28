@@ -41,8 +41,8 @@ if(await page.locator('#palette[open]').count()){await type('2');await key('Ente
 await key('p');await type('2');await key('Enter');await done('navigate');
 await key('Control+Shift+F12');await command('HardMode');assert.equal((await state()).hardMode,true);
 await key('g');await key('q');await type('coherence');await page.locator('[role=option]').first().waitFor();await key('Enter');assert.ok(await page.locator('.notebook-excerpt').count());await type('A quote captured with no mouse.');await key('Escape');
-await command('Set colors by hex');await type('#203040 #f5f2e9');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('paperterm.preferences.v2')).background),'#203040');
-await command('Add palette mapping by hex');await type('#0000ff #e7bb55');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('paperterm.preferences.v2')).palette.at(-1).to),'#e7bb55');
+await command('Set colors by hex');await type('#203040 #f5f2e9');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pipit.preferences.v2')).background),'#203040');
+await command('Add palette mapping by hex');await type('#0000ff #e7bb55');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('pipit.preferences.v2')).palette.at(-1).to),'#e7bb55');
 await command('Keyboard guide');await key('Control+Shift+F12');assert.equal((await state()).hardMode,false);await key('Escape');await page.reload();await page.waitForFunction(()=>typeof window.render_game_to_text==='function');assert.equal((await state()).hardMode,false);
 if(!await page.locator('#tutor-intro[open]').count()) await command('Tutor');
 await key('Tab');await key('Enter');await page.locator('#tutor-panel').waitFor();assert.equal((await state()).route,'learn');assert.equal((await state()).xp,300);
