@@ -12,6 +12,14 @@ export function viewerUrl(runtime, source) {
 
 export function isPdfResponse(details) {
   if (details.type !== 'main_frame' || details.method !== 'GET' || isDownloadBypass(details.url)) return false;
+  // Overleaf's separate-tab PDF viewer carries the SyncTeX relationship to
+  // the editor. Preserve that native route when the request comes from Overleaf.
+  for (const source of [details.documentUrl, details.originUrl, details.url]) {
+    try {
+      const hostname = new URL(source).hostname.toLowerCase();
+      if (hostname === 'overleaf.com' || hostname.endsWith('.overleaf.com')) return false;
+    } catch { /* Address-bar requests may have no source document. */ }
+  }
   if (!/^https?:/i.test(details.url) || details.statusCode < 200 || details.statusCode >= 300) return false;
   return details.responseHeaders?.some(header => header.name.toLowerCase() === 'content-type' && /^application\/pdf(?:\s*;|\s*$)/i.test(header.value || '')) || false;
 }

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { unzipSync, strFromU8 } from 'fflate';
 import { pages } from '../site/content.mjs';
 import { buildDocs } from './build-docs.mjs';
+import { Resvg } from '@resvg/resvg-js';
 
 const root = resolve('.'), output = resolve('site-dist');
 if (dirname(output) !== root || output === root) throw new Error('Unsafe website output path');
@@ -11,7 +12,7 @@ const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
 const built = JSON.parse(readFileSync('dist/manifest.json', 'utf8'));
 if (built.version !== version || !built.name.startsWith('Pipit')) throw new Error('Build Pipit before building the website');
 if (!existsSync('site/assets/pip.png')) throw new Error('The mascot artwork is missing');
-const release = { name: 'Pipit', version, channel: 'alpha', release: 'Alpha 03', downloads: {} };
+const release = { name: 'Pipit', version, channel: 'alpha', release: 'Alpha 04', downloads: {} };
 for (const [target, suffix] of [['chrome', 'chrome.zip'], ['firefox', 'firefox.xpi'], ['safari', 'safari-source.zip']]) {
   const filename = `pipit-${version}-${suffix}`, path = `artifacts/${filename}`;
   const bytes = readFileSync(path), checksum = createHash('sha256').update(bytes).digest('hex');
@@ -27,6 +28,8 @@ for (const filename of ['index.html', 'style.css', 'app.js', 'detection.js', 'sh
 cpSync('site/assets/pip.png', join(output, 'assets/pip.png'));
 for (const name of ['chrome.svg', 'firefox.svg', 'safari.png']) cpSync(`site/assets/${name}`, join(output, `assets/${name}`));
 cpSync('public/mark.svg', join(output, 'assets/mark.svg'));
+writeFileSync(join(output, 'assets/pipit-social-v1.png'), new Resvg(readFileSync('public/mark.svg'), { fitTo: { mode: 'width', value: 512 }, background: '#f5f2e9' }).render().asPng());
+cpSync('public/icon180.png', join(output, 'assets/apple-touch-icon.png'));
 for (const name of ['InterVariable.woff2', 'OFL.txt']) cpSync(`public/fonts/${name}`, join(output, `assets/${name}`));
 cpSync('LICENSE', join(output, 'LICENSE.txt'));
 const reader = join(output, 'reader');
@@ -36,7 +39,7 @@ for (const entry of readdirSync('dist')) {
   cpSync(join('dist', entry), join(reader, entry), { recursive: true });
 }
 let html = readFileSync(join(output, 'index.html'), 'utf8');
-html = html.replace(/ALPHA \d+ \/ VERSION [\d.]+/, `ALPHA 03 / VERSION ${version}`).replace(/Alpha 02/g, 'Alpha 03');
+html = html.replace(/ALPHA \d+ \/ VERSION [\d.]+/, `ALPHA 04 / VERSION ${version}`).replace(/Alpha 0[23]/g, 'Alpha 04');
 for (const [target, item] of Object.entries(release.downloads)) {
   const name = item.url.split('/').pop();
   cpSync(`artifacts/${name}`, join(output, item.url));
@@ -51,6 +54,19 @@ for (const [filename, page] of Object.entries(pages)) writeFileSync(join(output,
 writeFileSync(join(output, '404.html'), '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/style.css"><title>Page not found — Pipit</title></head><body><main class="document wrap"><h1>A small detour.</h1><p>That page is not here. Your next idea might be.</p><a href="/">Return to Pipit →</a></main></body></html>');
 let count = 0;
 await buildDocs(output, version);
+// Static head metadata is available to link unfurlers without executing JavaScript.
+for (const path of ['index.html', 'docs/index.html', 'reader/index.html', ...Object.keys(pages)]) {
+  const file = join(output, path);
+  let page = readFileSync(file, 'utf8');
+  const title = /<title>([^<]+)<\/title>/.exec(page)?.[1] || 'Pipit — PDF reader';
+  const description = /<meta name="description" content="([^"]+)"/.exec(page)?.[1] || 'A keyboard-first PDF reader for research papers.';
+  const url = `https://pipit-reader.pages.dev/${path.replace(/index\.html$/, '')}`;
+  const image = 'https://pipit-reader.pages.dev/assets/pipit-social-v1.png';
+  const metadata = `<link rel="canonical" href="${url}"><link rel="apple-touch-icon" href="https://pipit-reader.pages.dev/assets/apple-touch-icon.png"><meta property="og:site_name" content="Pipit"><meta property="og:url" content="${url}"><meta property="og:image" content="${image}"><meta property="og:image:secure_url" content="${image}"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="512"><meta property="og:image:height" content="512"><meta property="og:image:alt" content="Pipit’s golden bird icon on a dark green background"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}"><meta name="twitter:image" content="${image}"><meta name="twitter:image:alt" content="Pipit’s golden bird icon on a dark green background">`;
+  const fallback = page.includes('property="og:title"') ? '' : `<meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`;
+  page = page.replace('</head>', `${fallback}${metadata}</head>`);
+  writeFileSync(file, page);
+}
 function audit(directory) {
   for (const entry of readdirSync(directory)) {
     const path = join(directory, entry), stat = statSync(path);

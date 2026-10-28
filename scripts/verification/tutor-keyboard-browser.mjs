@@ -1,0 +1,51 @@
+import { chromium, webkit } from 'playwright';
+import assert from 'node:assert/strict';
+import { writeFileSync, mkdirSync } from 'node:fs';
+const output='output/playwright/keyboard-tutor'; mkdirSync(output,{recursive:true});
+const entry = process.argv[2] || 'http://127.0.0.1:4173/?tutor=1';
+const browser=await (process.env.PIPIT_TEST_ENGINE === 'webkit' ? webkit : chromium).launch();
+const page=await browser.newPage({viewport:{width:1440,height:1000},hasTouch:true});
+page.setDefaultTimeout(12000);
+const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+const state=()=>page.evaluate(()=>JSON.parse(window.render_game_to_text()));
+const key=value=>page.keyboard.press(value), type=value=>page.keyboard.type(value);
+const command=async name=>{await key(':');await type(name);await page.locator('[role=option]').first().waitFor();await key('Enter');};
+const done=async id=>{await page.waitForFunction(id=>JSON.parse(window.render_game_to_text()).completed.includes(id),id);console.log('PASS keyboard lesson',id);};
+const next=()=>key('Enter');
+const start=async()=>{assert.equal(await page.evaluate(()=>document.activeElement.id),'tutor-start');await key('Enter');await page.locator('#tutor-panel').waitFor();};
+try {
+await page.goto(entry);await page.locator('#tutor-intro[open]').waitFor();assert.equal(await page.locator('#tutor-start kbd').innerText(),'⏎');assert.equal(await page.locator('#tutor-start kbd').getAttribute('aria-label'),'Enter');await start();
+assert.equal((await state()).route,'learn');assert.equal((await state()).hardMode,true);assert.equal(await page.locator('.tutor-hint').isVisible(),true);assert.match(await page.locator('.tutor-hint').innerText(),/Press j/);
+await key('Shift+H');assert.equal(await page.locator('.tutor-hint').isVisible(),false);assert.equal(await page.locator('[data-tutor=hint]').getAttribute('aria-pressed'),'false');await key('Shift+H');assert.equal(await page.locator('.tutor-hint').isVisible(),true);await page.screenshot({path:`${output}/01-beginner.png`});
+await page.evaluate(()=>{window.__mouseEffects=0;for(const name of ['wheel','pointerdown','mousemove','touchstart','drop','contextmenu'])document.addEventListener(name,()=>window.__mouseEffects++);});
+const top=await page.locator('#viewer-container').evaluate(n=>n.scrollTop);
+await page.mouse.move(200,200);await page.mouse.click(200,200);await page.mouse.wheel(0,500);await page.touchscreen.tap(200,200);await page.mouse.click(200,200,{button:'right'});await page.mouse.move(200,210);await page.mouse.down();await page.mouse.move(450,400);await page.mouse.up();await page.waitForTimeout(400);
+assert.equal(await page.evaluate(()=>window.__mouseEffects),0);assert.equal(await page.locator('#viewer-container').evaluate(n=>n.scrollTop),top);assert.equal((await state()).xp,0);
+await key('j');await page.waitForTimeout(50);await key('k');await done('move');await next();
+await key('p');await type('2');await key('Enter');await done('navigate');await next();
+await key('/');await key('Shift+H');assert.equal(await page.locator('#find-input').inputValue(),'H');await key('Backspace');await type('coherence');await done('search');await key('Escape');await next();
+await key('e');await type('2');await page.locator('[role=option]').first().waitFor();await key('Enter');await done('preview');await page.screenshot({path:`${output}/02-preview.png`});await next();
+await key('Shift+P');await done('pin');await next();
+const trailLocation=()=>page.evaluate(()=>{const container=document.querySelector('#viewer-container');const number=document.querySelector('#page-current').textContent;const view=document.querySelector(`.pdfViewer .page[data-page-number="${number}"]`);return {page:number,offset:(container.scrollTop-view.offsetTop)/view.clientHeight};});
+const trailOrigin=await trailLocation();await key('Enter');await key('g');await key('h');await done('trail');const trailReturn=await trailLocation();assert.equal(trailReturn.page,trailOrigin.page);assert.ok(Math.abs(trailReturn.offset-trailOrigin.offset)<.03,'returns to the same page-relative position after pane resize');await next();
+await key('g');await page.waitForTimeout(2100);await key('d');await done('theme');await next(); // beginners may pause to read between keys
+await key('b');await done('bookmark');await next();
+await key('Shift+Q');await page.locator('.tutor-tool-hint').waitFor();assert.match(await page.locator('.tutor-tool-hint').innerText(),/Type a sentence/);await key('Control+Enter');assert.equal(await page.locator('.notebook-note').last().evaluate(n=>n===document.activeElement),true);await type('Keyboard exploration keeps the equation and its evidence connected.');await done('notes');await key('Escape');await next();
+await key('r');await done('ruler');await next();await key('g');await key('2');await done('spread');assert.equal((await state()).xp,300);await page.screenshot({path:`${output}/03-complete.png`});
+await key('Control+Shift+F12');assert.equal((await state()).hardMode,false);assert.equal((await state()).mode,'paused');
+await command('Tutor');await start();assert.equal((await state()).route,'practice');assert.equal((await state()).xp,0);assert.equal(await page.locator('.tutor-hint').isVisible(),false);await key('Shift+H');assert.equal(await page.locator('.tutor-hint').isVisible(),true);await key('Shift+H');assert.equal(await page.locator('.tutor-hint').isVisible(),false);
+await key('F2');await key('Tab');await key('Enter');assert.equal(await page.locator('.tutor-hint').isVisible(),true);await key('F2');
+await key('j');await key('k');await done('move');await next();
+await page.evaluate(()=>document.querySelector('[data-action="page"]')?.click());
+if(await page.locator('#palette[open]').count()){await type('2');await key('Enter');await page.waitForTimeout(350);assert.equal((await state()).completed.includes('navigate'),false);}
+await key('p');await type('2');await key('Enter');await done('navigate');
+await key('Control+Shift+F12');await command('HardMode');assert.equal((await state()).hardMode,true);
+await key('g');await key('q');await type('coherence');await page.locator('[role=option]').first().waitFor();await key('Enter');assert.ok(await page.locator('.notebook-excerpt').count());await type('A quote captured with no mouse.');await key('Escape');
+await command('Set colors by hex');await type('#203040 #f5f2e9');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('paperterm.preferences.v2')).background),'#203040');
+await command('Add palette mapping by hex');await type('#0000ff #e7bb55');await key('Enter');assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('paperterm.preferences.v2')).palette.at(-1).to),'#e7bb55');
+await command('Keyboard guide');await key('Control+Shift+F12');assert.equal((await state()).hardMode,false);await key('Escape');await page.reload();await page.waitForFunction(()=>typeof window.render_game_to_text==='function');assert.equal((await state()).hardMode,false);
+if(!await page.locator('#tutor-intro[open]').count()) await command('Tutor');
+await key('Tab');await key('Enter');await page.locator('#tutor-panel').waitFor();assert.equal((await state()).route,'learn');assert.equal((await state()).xp,300);
+await page.setViewportSize({width:390,height:844});await page.emulateMedia({reducedMotion:'reduce'});await page.screenshot({path:`${output}/04-mobile.png`});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+assert.deepEqual(errors,[]);writeFileSync(`${output}/result.json`,JSON.stringify({url:entry,state:await state(),errors,passed:true},null,2));console.log('PASS keyboard-only 11-lesson route, independent Learn/Practice, pointer blockade, shortcut enforcement, quote capture, colors, emergency exit and reload recovery.');
+} finally {await browser.close();}

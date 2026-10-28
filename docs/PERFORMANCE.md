@@ -20,7 +20,7 @@ Local Windows Chromium, 1440×960 viewport, cached Mozilla TraceMonkey research 
 
 Median total long-task time falls from 1212 to 52 ms (95.7% lower). All six runs reach page 14. These are requestAnimationFrame-driven scrolls, not a physical touchpad benchmark; headless/browser graphics, display refresh, caching, hardware, document content, zoom, and UI effects affect results. Occasional 50 ms frames remain. The unchanged 95th percentile is why the tail metrics matter here. No claim that all stutter is eliminated or that every PDF reader is slower is supported.
 
-Raw logs are retained in ignored `output/playwright/v052-scroll-before.txt` and `v052-scroll-after.txt`. Baseline distribution is retained as `artifacts/paperterm-0.5.1-chrome.zip` (SHA-256 `332f5fa03bbaf20a1d40e353a5c0d379cfbd76845749ab86dd51950b151ca5f5`). An earlier exploratory optimized run is not used in the table.
+Raw logs are retained in ignored `output/playwright/v052-scroll-before.txt` and `v052-scroll-after.txt`. Baseline distribution is retained in the ignored artifacts directory (SHA-256 `332f5fa03bbaf20a1d40e353a5c0d379cfbd76845749ab86dd51950b151ca5f5`). An earlier exploratory optimized run is not used in the table.
 
 ## Changes
 

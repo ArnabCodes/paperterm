@@ -1,6 +1,6 @@
 # Browser support
 
-Version 0.8.0 uses one reader frontend, PDF.js worker, recoloring worker and Rust WASM lookup engine. Packaging verifies 304 shared assets are byte-identical. Browser-specific code handles PDF opening, permissions and tab closing; rendering capability is detected at runtime, not selected by browser name. WebGL2 can be software-backed, and CPU fallback remains available. This release makes no new cross-browser performance superiority claim.
+Pipit uses one reader frontend, PDF.js worker, recoloring worker and Rust WASM lookup engine. Browser-specific code handles PDF opening, permissions and tab closing; rendering capability is detected at runtime, not selected by browser name. WebGL2 can be software-backed, and CPU fallback remains available. No cross-browser performance superiority is claimed.
 
 | Capability | Chromium | Firefox desktop | Safari |
 | --- | --- | --- | --- |
@@ -12,7 +12,11 @@ Version 0.8.0 uses one reader frontend, PDF.js worker, recoloring worker and Rus
 | Native file URL handoff | Chromium permission required | Not intercepted; use picker | Not implemented; use picker |
 | Distributable | Unpacked ZIP | Unsigned development XPI | Source ZIP, not an installable app |
 
-Embedded frames, POST responses, blob URLs, non-PDF MIME responses and browser-internal pages are not automatically intercepted. The exact query parameter `pipit-download=1` bypasses interception; legacy `paperterm-download=1` remains supported. Browser-managed downloads already started cannot be undone. Reading fetches PDF bytes but does not intentionally save a Downloads copy unless Download is selected.
+Embedded frames, POST responses, blob URLs, non-PDF MIME responses and browser-internal pages are not automatically intercepted. The exact query parameter `pipit-download=1` bypasses interception. Browser-managed downloads already started cannot be undone. Reading fetches PDF bytes but does not intentionally save a Downloads copy unless Download is selected.
+
+Top-level PDF navigations initiated by `overleaf.com` are left to Overleaf so its own PDF viewer and SyncTeX controls keep working. Pipit does not implement SyncTeX itself. In Overleaf, keep **Settings → Editor → PDF Viewer → Overleaf** selected; Overleaf documents that its Browser viewer does not support SyncTeX.
+
+In the reader, **Print PDF** (Ctrl+P, or ⌘+P on macOS) opens the PDF in the browser’s built-in viewer, where its native print command can print without first saving a separate file. **Open original PDF for Zotero** (`g Z`) returns a remote PDF to the browser viewer for Zotero Connector. Firefox must be set to **Preview in Firefox** for Connector PDF capture. This handoff adds the documented `pipit-download=1` bypass parameter to that one URL; a publisher’s signed URL may reject the extra parameter, in which case use the publisher page’s Zotero Connector action. Local PDFs have no source URL to hand off.
 
 ## Build all targets
 

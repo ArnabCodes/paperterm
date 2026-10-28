@@ -13,7 +13,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 const { PDFViewer, PDFLinkService, PDFFindController, EventBus } = await import('pdfjs-dist/web/pdf_viewer.mjs');
 
 export interface OutlineEntry { title: string; depth: number; dest: string | unknown[] | null; url?: string }
-export interface Location { page: number; top: number; left: number; zoom?: string; rotation?: number }
+export interface Location { page: number; top: number; left: number; offset?: number; leftFraction?: number; zoom?: string; rotation?: number }
 
 export class Reader {
   readonly bus: BusType = new EventBus();
@@ -165,7 +165,13 @@ export class Reader {
     this.bus.dispatch('find', { source: this, type: again ? 'again' : '', query, phraseSearch: true, caseSensitive: false, entireWord: false, highlightAll: true, findPrevious: previous, matchDiacritics: false });
   }
 
-  get location(): Location { return { page: this.viewer.currentPageNumber, top: this.container.scrollTop, left: this.container.scrollLeft, zoom: this.viewer.currentScaleValue, rotation: this.viewer.pagesRotation }; }
+  get location(): Location {
+    const page = this.viewer.currentPageNumber;
+    const view = this.viewer.getPageView(page - 1);
+    return { page, top: this.container.scrollTop, left: this.container.scrollLeft,
+      offset: this.offset, leftFraction: view?.div?.clientWidth ? this.container.scrollLeft / view.div.clientWidth : undefined,
+      zoom: this.viewer.currentScaleValue, rotation: this.viewer.pagesRotation };
+  }
   get offset(): number {
     const view = this.viewer.getPageView(this.viewer.currentPageNumber - 1);
     return view?.div ? (this.container.scrollTop - view.div.offsetTop) / view.div.clientHeight : 0;
@@ -180,7 +186,10 @@ export class Reader {
     if (location.rotation !== undefined) this.viewer.pagesRotation = location.rotation;
     if (location.zoom) this.viewer.currentScaleValue = location.zoom;
     this.viewer.currentPageNumber = location.page;
-    this.container.scrollTo({ top: location.top, left: location.left, behavior: 'instant' });
+    const view = this.viewer.getPageView(location.page - 1);
+    const top = view?.div && Number.isFinite(location.offset) ? view.div.offsetTop + location.offset! * view.div.clientHeight : location.top;
+    const left = view?.div && Number.isFinite(location.leftFraction) ? location.leftFraction! * view.div.clientWidth : location.left;
+    this.container.scrollTo({ top, left, behavior: 'instant' });
     this.viewer.update();
   }
 

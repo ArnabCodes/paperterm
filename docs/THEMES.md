@@ -1,6 +1,6 @@
 # Reading palettes
 
-Paperterm adds 20 terminal-inspired presets to Paper, Sepia, and Night. This is a curated set of established terminal theme families, not a claim of a universal popularity ranking. There is no authoritative cross-terminal top-20 chart.
+Pipit adds 20 terminal-inspired presets to Paper, Sepia, and Night. This is a curated set of established terminal theme families, not a claim of a universal popularity ranking. There is no authoritative cross-terminal top-20 chart.
 
 ## Dark
 
@@ -22,7 +22,7 @@ The old page-dependent opaque-ink guesses and nearest-swatch snapping are replac
 
 A bundled worker uses an OffscreenCanvas/WebGL2 shader with a cached 65³ color lookup texture and exact 256-level neutral lookup. Custom substitutions run analytically in the shader, avoiding narrow replacement bands being lost in lookup interpolation. Up to four lookup tables are retained (about 4.4 MiB). The CPU worker fallback uses the same continuous equations and retains alpha; GPU lookup interpolation can differ by a few RGB units. WebGL2 capability does not prove physical GPU acceleration: headless browsers or driver policy may use software GL.
 
-This follows the shader approach seen in [Sioyek's custom-color fragment shader](https://github.com/ahrm/sioyek/blob/development/pdf_viewer/shaders/custom_colors.fragment). [Zathura's render implementation](https://github.com/pwmt/zathura/blob/develop/zathura/render.c) instead interpolates its endpoint colors in the render thread and can preserve image regions. Paperterm is an independent implementation; it does not reproduce their exact appearance or identify PDF image regions.
+This follows the shader approach seen in [Sioyek's custom-color fragment shader](https://github.com/ahrm/sioyek/blob/development/pdf_viewer/shaders/custom_colors.fragment). [Zathura's render implementation](https://github.com/pwmt/zathura/blob/develop/zathura/render.c) instead interpolates its endpoint colors in the render thread and can preserve image regions. Pipit is an independent implementation; it does not reproduce their exact appearance or identify PDF image regions.
 
 PDF.js still renders with grayscale antialiasing. During zoom, up to four scaled copies of previous themed rasters cover pending replacement pages; raw new canvases remain hidden until recoloring completes. Initial pages use the themed paper placeholder. Preview pages render into a detached buffer and swap atomically. Rapid theme changes coalesce, and stale results cannot overwrite current pages. Original raster caches permit exact reset. No document pixels leave the browser.
 

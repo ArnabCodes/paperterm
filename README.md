@@ -1,10 +1,25 @@
 # Pipit
 
+**Local 0.11.7 fixes:** `[` / `]` now follow actual PDF text lines; Ctrl+P / ⌘+P opens a print-ready PDF in the browser viewer; `g Z` hands a remote PDF back to the browser for Zotero; Overleaf-initiated PDF tabs bypass Pipit so Overleaf’s SyncTeX viewer remains in control. This source has not been deployed yet. The live site remains on 0.11.6.
+
 A quiet PDF workspace for following ideas without losing your place. A minimal web interface, Sioyek-inspired keyboard navigation and reference previews, and a Rust/WebAssembly lookup engine.
 
-Formerly **Paperterm**, now **Pipit**. This browser-first implementation replaces the Python terminal prototype; Git history and existing reader storage keys are preserved. The repository remains private at its existing URL.
 
 ## Start here
+
+**Live 0.11.5 — reading history:** `g h` / `g l` move back / forward, with Backspace / Shift Backspace and the prior Alt-arrow shortcuts as aliases. Lesson 6 restores its equation preview when resumed, supports replay and returns to a page-relative position across pane resizing. The revised tutorial PDF keeps its original document identity and existing notes. [Try it](https://pipit-reader.pages.dev/reader/?tutor=1&v=0.11.5); see [shortcut audit](docs/KEYBOARD-AUDIT.md). Source has not been pushed.
+
+**Live 0.11.4 — Flight School:** Mouse-accessible game controls, disabled reader controls, eleven distinct animated scenes, centered level introductions, completion confetti and an optional returning-player speedrun. The timer pauses with the game; skipped runs are unranked. [Play](https://pipit-reader.pages.dev/reader/?tutor=1&v=0.11.4). Chromium/WebKit full speedruns, Vimium, Firefox development package and public download hashes were verified. Native Safari remains untested. No GitHub push.
+
+**Live 0.11.3 — lesson controls:** Flight School uses ⏎ for Enter and Shift H to toggle hints. The full course, text-entry protection, Chromium/WebKit, real Vimium and public downloads were verified. [Play the tutorial](https://pipit-reader.pages.dev/reader/?tutor=1&v=0.11.3). Source has not been pushed.
+
+**Live release — 0.11.2 keyboard-extension conflicts:** Flight School now has a focused keyboard surface and independent light/dark appearance. The complete course passes with actual Vimium in an isolated Chromium profile. With default Surfingkeys autofocus protection, the course pauses safely and asks for a site exception; after Surfingkeys' Alt S site toggle, the complete course passes. Chromium extension and Firefox development extension were tested; WebKit was tested separately, not native Safari. Published at https://pipit-reader.pages.dev/reader/?tutor=1&v=0.11.2; all three public package hashes were verified. Source has not been pushed to GitHub. See [Tutor](docs/TUTOR.md).
+
+**Live reliability/design patch — 27 October 2026:** [Pipit 0.11.1 Flight School](https://pipit-reader.pages.dev/reader/?tutor=1&v=0.11.1) replaces the long setup with Play focused by default. Enter starts/advances; Escape closes a tool, then pauses; Enter resumes. Original pixel-style SVG art, feathers, XP, lit keys and level tiles accompany the real PDF actions. The input fix supports immediate j/k, coach focus and forwarded webview events; training prefixes no longer expire while reading instructions. Guidance stays visible inside lookup/notebook dialogs. Full course and four-viewport regressions pass locally and live; Chromium extension and 36 Firefox checks pass. All three downloads independently match `docs/releases/0.11.1-alpha.4.json`. Update/reload installed packages to use this build. Source remains local; this patch was not pushed to GitHub. Earlier release entries below are historical.
+
+**Live release — 27 October 2026:** [Pipit 0.11.0 / Alpha 04](https://pipit-reader.pages.dev/#download) rebuilds [Tutor](https://pipit-reader.pages.dev/reader/?tutor=1) as eleven keyboard games. Learn shows numbered keystrokes from j/k onward; Practice hides steps and keeps independent progress. Lessons require the taught shortcut plus a real result. Training enters hard mode, which blocks pointer input inside Pipit. `:HardMode` toggles it separately; **Ctrl Shift F12** always restores pointer input and pauses training. Reload also clears hard mode. Keyboard gaps were closed with `g i` / `g m` preview/document focus, `g q` anchored text-line capture, typed hex colors/mappings and Scholar queries. [Keyboard audit](docs/KEYBOARD-AUDIT.md), [tutorial guide](docs/TUTOR.md), [release evidence](docs/ALPHA.md). Website and packages are published; these source changes have not been pushed to GitHub. This supersedes the release entries below.
+
+**Branding patch — 26 October 2026:** Version 0.10.1 removes obsolete migration copy from the website, docs and package installation text. The live site uses only Pipit branding and includes bird-icon social previews. Hidden storage and extension identity keys remain stable to preserve current Pipit data and updates. All three public package hashes were verified against `docs/releases/0.10.1-alpha.3.json`.
 
 **GitHub source update — 26 October 2026:** Arnab authorized committing and pushing the current Alpha 03 source to this private repository after website publication. Earlier notes about withholding Git commits/pushes describe the prior publication boundary; no GitHub release upload or browser-store submission is included.
 
@@ -54,7 +69,7 @@ The build bundles the renderer, PDF worker, fonts, character maps, image decoder
 
 Generate the distributable with `npm run package` after building. It includes a SHA-256 companion file. **After an update, click Reload on the Pipit card in `chrome://extensions`, then reopen your PDF tabs.** Refreshing an existing PDF tab alone does not update the background redirect rules. Disable the extension to restore Chrome's built-in viewer. This does not change the operating system's default application.
 
-Chrome 128+ is the declared extension minimum because response-header redirect rules require it; the tested version is listed in the validation report. Use current Chrome. Top-level GET responses served as `application/pdf` open directly, **including attachment-style PDF links**. Opening a remote PDF does not save a file to Downloads or add it to the recent-document library. Like any viewer, the browser must fetch the PDF bytes and may use its normal network cache. Use the Download button to explicitly save a copy; `paperterm-download=1` in a URL also bypasses interception.
+Chrome 128+ is the declared extension minimum because response-header redirect rules require it; the tested version is listed in the validation report. Use current Chrome. Top-level GET responses served as `application/pdf` open directly, **including attachment-style PDF links**. Opening a remote PDF does not save a file to Downloads or add it to the recent-document library. Like any viewer, the browser must fetch the PDF bytes and may use its normal network cache. Use the Download button to explicitly save a copy; `pipit-download=1` in a URL also bypasses interception.
 
 Embedded PDF frames, POST responses, browser-internal viewers, blob URLs, and files served with a non-PDF MIME type are not intercepted. Sites with expiring URLs or unusual authentication may require downloading and opening the file locally. Disable other PDF-viewer extensions if their redirects conflict.
 
@@ -69,6 +84,8 @@ Embedded PDF frames, POST responses, browser-internal viewers, blob URLs, and fi
 - Searchable document contents, next/previous section and equation navigation, plus explicit Google Scholar searches and DOI/arXiv links from detected references. These external actions open a new tab only when selected.
 - Keyboard hints over embedded links, plus heuristic hints over visible equation numbers and numeric citations even when the PDF has no links.
 - Reading history, page bookmarks, named marks, a movable reading ruler, focus mode, and a searchable command palette.
+- The ruler advances to the next visible PDF text line with `]` and back with `[`. `Ctrl+P` / `⌘+P` opens the PDF in the browser’s native viewer for direct printing without a download detour. Use `g Z` on a remote PDF to open its source in the browser for Zotero Connector; local files have no source URL to hand off.
+- Overleaf-originated PDF tabs remain with Overleaf’s SyncTeX-aware viewer. Pipit itself does not implement SyncTeX; keep Overleaf’s PDF Viewer setting on **Overleaf** rather than **Browser**.
 - Paper, Sepia, and Night plus 20 terminal-inspired light/dark themes, with brightness filters and command-menu selection. See [theme names and sources](docs/THEMES.md). Opaque inks map to nearby palette colors; antialiased edge pixels retain their coverage and blend continuously against the chosen paper color. PDF canvases use grayscale antialiasing so subpixel fringes are not mistaken for colored ink. Terminal themes use full ANSI snapshots; the original three presets use their own three swatches. Custom foreground/background colors and up to 12 source replacements remain available and take priority, including smooth text edges. This changes images too; disable recoloring when original scientific colors matter.
 - Local recent-document library and saved reading positions. Password prompt and invalid-file recovery.
 - Frosted panels with blur, saturation, and translucent theme-aware surfaces. Turn off **Frosted panels** for solid dialogs/sidebar; the dock retains its 24%-opacity background and backdrop blur at rest and expanded. A continuous spring controls expansion and contraction, retaining velocity when interrupted; nearby icons gently magnify under the pointer. Reduced-motion mode exposes tools immediately, and reduced-transparency preferences take priority. Interface text uses locally bundled Inter Variable. PDF typography itself is unchanged.
@@ -124,6 +141,8 @@ Unmodified letters are lowercase. A capital letter below explicitly means Shift 
 | `g B` / `g /` | Preview citation mentions / search selected text in Scholar |
 | `Ctrl/Cmd+Enter` / `Ctrl/Cmd+S` inside notebook | Add text note / export Markdown |
 | `:` / `Ctrl+k` (macOS: `Cmd+k`) | All commands: reading tools, settings, themes, and two-page layout |
+| `Ctrl+p` (macOS: `⌘+p`) | Open the source PDF in the browser’s native viewer for printing |
+| `g Z` | Open a remote PDF in the native browser viewer for Zotero Connector |
 | `:` then a number, `Enter` | Jump directly to that page |
 | `?` or `F1` / `Escape` | Keyboard guide / dismiss active surface |
 
@@ -145,7 +164,7 @@ Up to six opened local PDFs, each no larger than 25 MB, are cached in IndexedDB.
 
 Notebook entries also live in localStorage, keyed to the document fingerprint: up to 200 entries per PDF, with 8,000 characters each for an excerpt and its note. Browser storage limits can be lower; a save failure is shown and Markdown export remains available. External Scholar searches send the selected reference/passage to Google only after an explicit command. DOI/arXiv actions contact their respective sites.
 
-This is not full Sioyek parity. Lookup is text-based and heuristic, not a semantic citation resolver. Scans have no searchable text without OCR; there is no built-in OCR. Complex columns, unusual numbering, split captions, and bibliography styles can produce missing or incorrect matches. Inspect the preview before trusting a match. There is no SyncTeX, annotation editor, arbitrary key remapping, cross-document citation linking, or cloud sync. Very large documents have not been performance-qualified.
+This is not full Sioyek parity. Lookup is text-based and heuristic, not a semantic citation resolver. Scans have no searchable text without OCR; there is no built-in OCR. Complex columns, unusual numbering, split captions, and bibliography styles can produce missing or incorrect matches. Inspect the preview before trusting a match. Pipit itself has no SyncTeX, annotation editor, arbitrary key remapping, cross-document citation linking, or cloud sync. Overleaf-originated PDF tabs are left to Overleaf’s own SyncTeX-aware viewer. Very large documents have not been performance-qualified.
 
 An ordinary browser tab cannot make the **Chrome window transparent** to the desktop. Custom page colors are supported; OS-level transparency from the earlier desktop request is not promised for this web app.
 

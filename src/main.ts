@@ -2,7 +2,7 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import './style.css';
 import { closeCurrentExtensionTab, isExtensionPage, validatePdfSource } from './platform';
 import './help.css';
-import { leaderActions, leaderKeys, shortcutSections } from './shortcuts';
+import { displayShortcut, leaderActions, shortcutSections } from './shortcuts';
 import './chrome.css';
 import './research.css';
 import { applyThemeTokens, getTheme, themes } from './themes';
@@ -12,7 +12,7 @@ import { Reader, type Location, type OutlineEntry } from './reader';
 import { ReferenceEngine } from './engine';
 import { defaults, defaultReadingState, loadPreferences, readStored, saveStored } from './preferences';
 import { clearBooks, listBooks, readBook, saveBook } from './library';
-import { element, escapeHtml as esc, type ReferenceHit, type ReferenceKind, type ReadingState } from './types';
+import { element, escapeHtml as esc, type ReferenceHit, type ReferenceKind, type ReadingState, type TextLine } from './types';
 import { initializeNotebook } from './notebook';
 import { buildDocumentMap } from './research';
 import { initializeResearch } from './research-panel';
@@ -24,8 +24,10 @@ import { suggestPaperQuery } from './citation-network';
 import { initializeFileBrowser } from './file-browser';
 import { discoverPublisherPdfs, publisherPage } from './publisher-pdf';
 import { initializeTutor } from './tutor';
+import { initializeHardMode } from './hard-mode';
 
 element('#app').innerHTML = shell();
+const hardMode = initializeHardMode();
 const openFileBrowser = initializeFileBrowser((blob, name) => openDocument(blob, name));
 const previewMenu = document.createElement('div');
 previewMenu.className = 'preview-context'; previewMenu.popover = 'auto';
@@ -47,6 +49,7 @@ const engine = new ReferenceEngine();
 let state: ReadingState = defaultReadingState();
 let fingerprint = '';
 let fileName = 'document.pdf';
+let originalPdfUrl = '';
 let outline: OutlineEntry[] = [];
 let navigationTab = 'outline';
 let opening = false;
@@ -100,6 +103,7 @@ const notebook = initializeNotebook({
 });
 const backward: Location[] = [];
 const forward: Location[] = [];
+let pendingPortalJump: { queuedHistory: boolean[] } | null = null;
 const palette = element<HTMLDialogElement>('#palette');
 const paletteInput = element<HTMLInputElement>('#palette-input');
 let paletteMode = 'commands';
@@ -115,11 +119,44 @@ let hintPrefix = '';
 let hintScrollTop = 0;
 let hintScrollLeft = 0;
 let selectedPdfText = '';
+let indexedLines: readonly TextLine[] = [];
 function tutorSavedNotes() {
   const notes = readStored<unknown>(`paperterm.notebook.v1:${fingerprint}`, []);
   return Array.isArray(notes) ? notes.filter(note => note && typeof note === 'object' && ((typeof note.note === 'string' && note.note.trim()) || (typeof note.excerpt === 'string' && note.excerpt.trim()))).length : 0;
 }
 const tutor = initializeTutor({
+  hard: hardMode,
+  resetInput: () => { prefix = ''; clearTimeout(prefixTimer); closeHints(); },
+  prepare: async () => {
+    reader.viewer.scrollMode = 0; reader.viewer.spreadMode = 0;
+    reader.viewer.currentScaleValue = 'auto'; reader.goTo(1);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    reader.container.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  },
+  needsMissionSetup: id => (id === 'pin' || id === 'trail') && (!portalTarget || portalTarget.page !== 3 || previewPinned !== (id === 'trail')),
+  prepareMission: async (id, isCurrent) => {
+    const hits = await engine.lookup('2', 'equation');
+    const hit = hits.find(candidate => candidate.label === '2' && candidate.page === 3);
+    if (!hit) throw new Error('Equation (2) is not ready yet. Press e, type 2 and press Enter to reopen it.');
+    if (!isCurrent()) return;
+    if (reader.viewer.currentPageNumber !== 2) reader.goTo(2);
+    previewPinned = id === 'trail';
+    setPanelWidth(panelWidth);
+    const target = previewForHit(hit);
+    await showPortal(target, [target]);
+    // Pinning changes the reader width and can trigger a delayed PDF.js reflow.
+    // Establish the source position only after that layout has settled.
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    if (!isCurrent()) return;
+    reader.goTo(2);
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  },
+  move: direction => {
+    const before = reader.container.scrollTop;
+    reader.container.scrollTo({ top: Math.max(0, before + direction * 65), behavior: 'instant' });
+    return direction > 0 ? reader.container.scrollTop > before : reader.container.scrollTop < before;
+  },
+  canPause: () => !portalTarget && element('#find-bar').hidden,
   open: async () => {
     await openDocument(new URL('tutor.pdf', document.baseURI).href, 'The Coherence Atlas.pdf');
     const sequence = loadSequence;
@@ -136,6 +173,8 @@ const tutor = initializeTutor({
     bookmarked: state.bookmarks.some(mark => mark.page === reader.viewer.currentPageNumber),
     notes: tutorSavedNotes(),
     ruler: !element('#reading-ruler').hidden, spread: reader.viewer.spreadMode,
+    rulerPosition: parseFloat(element('#reading-ruler').style.top || '40'), focus: document.body.classList.contains('focus-mode'),
+    quickmarkPage: typeof state.marks.a === 'number' ? state.marks.a : state.marks.a?.page,
   }),
   jump: page => goTo(page), command: () => openPalette('commands'), focus: () => reader.container.focus(),
 });
@@ -167,18 +206,26 @@ function pushHistory() {
   forward.length = 0;
 }
 
-function goTo(page: number, ypos?: number) { pushHistory(); reader.goTo(page, ypos); saveState(); }
+function goTo(page: number, ypos?: number) { pendingPortalJump = null; pushHistory(); reader.goTo(page, ypos); saveState(); }
 
 function historyMove(back: boolean) {
+  if (pendingPortalJump) { pendingPortalJump.queuedHistory.push(back); return; }
   const source = back ? backward : forward;
   const target = source.pop();
   if (!target) { toast(back ? 'You are at the beginning of your reading trail.' : 'No forward position yet.'); return; }
   (back ? forward : backward).push(reader.location);
   reader.restore(target); saveState();
-  if (back) tutor.returned();
+  // PDF.js may report another visible page after a reflow. Check the actual
+  // scroll position against the restored history entry, not its current-page heuristic.
+  const view = reader.viewer.getPageView(target.page - 1);
+  const wanted = view?.div && Number.isFinite(target.offset) ? view.div.offsetTop + target.offset! * view.div.clientHeight : target.top;
+  const clamped = Math.max(0, Math.min(wanted, reader.container.scrollHeight - reader.container.clientHeight));
+  if (back && Math.abs(reader.container.scrollTop - clamped) <= 3) tutor.returned(target.page);
 }
 
 async function openDocument(source: string | File | Blob, name = 'document.pdf', libraryId?: string, resolvePublisher = false) {
+  pendingPortalJump = null;
+  originalPdfUrl = '';
   tutor.documentChanging();
   const originalSource = typeof source === 'string' ? source : '';
   document.querySelector('#publisher-recovery')?.remove();
@@ -189,6 +236,7 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
   opening = true; indexed = false; hasText = false;
   selectedPdfText = '';
   documentMap = buildDocumentMap([]); notebook.reset(); research.reset(); fieldMap.reset();
+  indexedLines = [];
   backward.length = forward.length = 0;
   engine.index([]);
   closePortal(); closeHints(); closeFind();
@@ -208,6 +256,7 @@ async function openDocument(source: string | File | Blob, name = 'document.pdf',
         source = links[0].url;
         if (name === 'document.pdf' || !/\.pdf$/i.test(name)) name = 'Publisher paper.pdf';
       }
+      if (/^https?:\/\//i.test(source)) originalPdfUrl = source;
     }
     const bytes = typeof source === 'string' ? source : new Uint8Array(await source.arrayBuffer());
     if (sequence !== loadSequence) return;
@@ -279,6 +328,7 @@ reader.onPage = page => {
 reader.onZoom = zoom => { element('#zoom-value').textContent = `${Math.round(zoom * 100)}%`; schedulePreview(); };
 reader.onMatches = (current, total) => { element('#find-count').textContent = total ? `${current} of ${total}` : 'No matches'; };
 reader.onIndex = (lines, complete) => {
+  indexedLines = lines;
   documentMap = buildDocumentMap(lines); research.update();
   engine.index(lines); indexed = complete; hasText = lines.length > 0;
   element('#engine-status').textContent = complete ? hasText ? 'Local · Ready' : 'Image-only PDF' : 'Indexing references…';
@@ -464,9 +514,17 @@ element('#find-input').addEventListener('input', () => { reader.find(element<HTM
 element('#find-input').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); findNext(event.shiftKey); } });
 
 const commands = [
+  { title: 'Capture passage by text', detail: 'Find a PDF text line and save its anchored quote without selecting with a mouse', key: 'g q', action: 'passage' },
+  { title: 'Set colors by hex', detail: 'Type background and foreground hex colors without a native color picker', key: ': Set colors by hex', action: 'colors', global: true },
+  { title: 'Add palette mapping by hex', detail: 'Type a source and replacement hex color', key: ': Add palette mapping by hex', action: 'mapping', global: true },
+  { title: 'HardMode', detail: 'Toggle keyboard-only mode; Ctrl Shift F12 always exits. Resets on reload', key: 'Ctrl Shift F12', action: 'hard-mode', global: true },
+  { title: 'Focus reference preview', detail: 'Move keyboard focus into the reference lens', key: 'g i', action: 'focus-preview' },
+  { title: 'Focus document', detail: 'Return keyboard focus to the main paper', key: 'g m', action: 'focus-document' },
   { title: 'Tutor', detail: 'Start or resume a guided PDF expedition with missions, hints and local progress', key: ':Tutor', action: 'tutor', global: true },
   { title: 'All commands', detail: 'Search every action, setting, and reading theme', key: ':', action: 'commands', global: true },
   { title: 'Show reading dock', detail: 'Reveal controls and move keyboard focus to the dock', key: 'F6', action: 'dock' },
+  { title: 'Print PDF', detail: 'Open this PDF in your browser’s built-in viewer for direct, crisp printing without saving a copy first', key: 'Ctrl P', action: 'print' },
+  { title: 'Open original PDF for Zotero', detail: 'Open the source PDF in your browser viewer so Zotero Connector can capture it', key: '', action: 'open-original' },
   { title: 'Zoom in', detail: 'Increase the PDF magnification', key: '+', action: 'zoom-in' },
   { title: 'Zoom out', detail: 'Decrease the PDF magnification', key: '-', action: 'zoom-out' },
   { title: 'Toggle frosted panels', detail: 'Switch between transparent glass and solid controls', key: '', action: 'glass', global: true },
@@ -504,7 +562,7 @@ const commands = [
   { title: 'Search document contents', detail: 'Filter embedded section titles and jump directly', key: 'g t', action: 'contents' },
   { title: 'Next section', detail: 'Move to the next embedded outline destination', key: 'g s', action: 'next-section' },
   { title: 'Previous section', detail: 'Move to the previous embedded outline destination', key: 'g S', action: 'previous-section' },
-  { title: 'Search selected text in Google Scholar', detail: 'Opens a new tab; sends only your selected text to Google Scholar', key: '', action: 'scholar' },
+  { title: 'Search Google Scholar', detail: 'Search selected text, or type a query; sends that text to Google Scholar in a new tab', key: '', action: 'scholar' },
   { title: 'Go to page', detail: 'Jump to a page number; or type a number in the command menu', key: 'p', action: 'page' },
   { title: 'Follow a link', detail: 'Type the hint shown over a visible PDF link', key: 'f', action: 'links' },
   { title: 'Reference lens', detail: 'Peek at visible equations, figures, tables, citations and internal links; scroll for surrounding context', key: 'Shift F', action: 'preview-links' },
@@ -515,9 +573,9 @@ const commands = [
   { title: 'Go forward', detail: 'Forward through your reading trail', key: 'Alt →', action: 'history-forward' },
   { title: 'Focus mode', detail: 'Hide the interface and stay with the page', key: 'z', action: 'focus' },
   { title: 'Reading ruler', detail: 'A movable line to guide your eyes', key: 'r', action: 'ruler' },
-  { title: 'Fit page width', detail: 'Make the text comfortable to read', key: 'w', action: 'fit-width' },
+  { title: 'Fit page width', detail: 'Make the text comfortable to read', key: 'w / =', action: 'fit-width' },
   { title: 'Smart width', detail: 'Fit the current page’s text bounds, excluding outer margins; scans use page width', key: 'Shift W', action: 'smart-width' },
-  { title: 'Toggle Vimium compatibility', detail: 'Leave unmodified navigation and tab keys to Vimium; use : for PDF commands', key: '', action: 'vimium', global: true },
+  { title: 'Toggle Vimium compatibility', detail: 'Leave plain navigation and tab keys to Vimium; use Ctrl K for PDF commands', key: '', action: 'vimium', global: true },
   { title: 'Fit whole page', detail: 'See the page in context', key: 'a', action: 'fit-page' },
   { title: 'Rotate clockwise', detail: 'Rotate every page by 90 degrees', key: 'Shift R', action: 'rotate' },
   { title: 'Two-page spread', detail: 'Toggle single and facing pages', key: '', action: 'spread' },
@@ -526,9 +584,11 @@ const commands = [
   { title: 'Download original PDF', detail: 'Save an unmodified copy', key: '', action: 'download' },
   { title: 'Keyboard guide', detail: 'A shortcut to everywhere', key: '?', action: 'help', global: true },
   ...themes.map(theme => ({ title: `Theme: ${theme.name}`, detail: `${theme.mode === 'light' ? 'Light' : 'Dark'} reading palette`, key: '', action: `theme:${theme.id}`, global: true })),
-].map(command => ({ ...command, global: 'global' in command && command.global, key: leaderKeys[command.action] || ({ 'close-portal': 'Escape', 'portal-jump': 'Enter', open: 'o / Ctrl O', help: '? / F1', commands: ': / Ctrl K' } as Record<string, string>)[command.action] || command.key }));
+].map(command => ({ ...command, global: 'global' in command && command.global, key: displayShortcut(command.action, command.key) }));
 
 function actionAvailable(action: string) {
+  if (action === 'open-original') return !!originalPdfUrl;
+  if (action === 'focus-preview') return !!portalTarget;
   if (action === 'history-back') return backward.length > 0;
   if (action === 'history-forward') return forward.length > 0;
   if (action === 'portal-back') return previewIndex > 0;
@@ -551,10 +611,12 @@ function closeDialog(dialog: HTMLDialogElement) { dialog.close(); (returnFocus?.
 function openPalette(mode: string) {
   rememberSelection();
   paletteMode = mode; selected = 0; closeHints();
-  const titles: Record<string, string> = { commands: 'Find a command', url: 'Open PDF from URL', page: 'Go to page', equation: 'Find an equation', citation: 'Find a citation', figure: 'Find a figure or table', recent: 'Your recent reading', contents: 'Search document contents' };
+  const titles: Record<string, string> = { commands: 'Find a command', url: 'Open PDF from URL', page: 'Go to page', equation: 'Find an equation', citation: 'Find a citation', figure: 'Find a figure or table', recent: 'Your recent reading', contents: 'Search document contents', passage:'Capture passage by text', colors:'Set background and foreground', mapping:'Add palette mapping' };
   const placeholders: Record<string, string> = { commands: 'What would you like to do?', url: 'https://example.org/paper.pdf', page: `Page number (1–${reader.document?.numPages || 1})`, equation: 'Equation number, e.g. 2 or A.1', citation: 'Reference number, author, or title…', figure: 'Figure or table number…', recent: 'Find a document…', contents: 'Find a section…' };
   element('#palette-title').textContent = titles[mode];
-  paletteInput.placeholder = placeholders[mode]; paletteInput.setAttribute('aria-label', titles[mode]);
+  if (mode === 'scholar-query') titles[mode] = 'Search Google Scholar';
+  element('#palette-title').textContent = titles[mode];
+  paletteInput.placeholder = mode === 'scholar-query' ? 'Type a research query…' : mode === 'passage' ? 'Find a phrase (at least two characters)…' : ['colors','mapping'].includes(mode) ? '#243f35 #f5f2e9 — two hex colors' : placeholders[mode]; paletteInput.setAttribute('aria-label', titles[mode]);
   paletteInput.value = ''; paletteInput.inputMode = mode === 'page' ? 'numeric' : mode === 'url' ? 'url' : 'text';
   paletteInput.setAttribute('role', 'combobox'); paletteInput.setAttribute('aria-controls', 'palette-results'); paletteInput.setAttribute('aria-expanded', 'true');
   element('#palette-foot').innerHTML = ['equation', 'citation', 'figure'].includes(mode) ? '↑ ↓ to navigate <span>↵ preview · Shift ↵ jump</span>' : '↑ ↓ to navigate <span>↵ to select</span>';
@@ -579,6 +641,18 @@ async function computeChoices() {
       choices = commands.filter(command => (reader.document || command.global) && actionAvailable(command.action) && terms.every(term => `${command.title} ${command.detail}`.toLowerCase().includes(term))).map(command => ({ ...command, action: () => runAction(command.action) }));
       const page = Number(query);
       if (/^\d+$/.test(query) && reader.document && page >= 1 && page <= reader.document.numPages) choices.unshift({ title: `Go to page ${page}`, detail: 'Your reading trail is preserved', action: () => goTo(page) });
+    } else if (paletteMode === 'scholar-query') {
+      choices = query ? [{title:'Search Google Scholar',detail:'Sends this query to Google Scholar in a new tab',action:()=>window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(query.slice(0,2000))}`,'_blank','noopener,noreferrer')}] : [];
+    } else if (paletteMode === 'passage') {
+      choices = query.length < 2 ? [] : indexedLines.filter(line => terms.every(term => line.text.toLowerCase().includes(term))).slice(0,60).map(line => ({ title:line.text, detail:`Page ${line.page} · save this text line as an anchored quote`, action:()=>notebook.captureText(line.text,line.page,line.y) }));
+    } else if (['colors','mapping'].includes(paletteMode)) {
+      const colors = query.split(/\s+/);
+      const valid = colors.length === 2 && colors.every(color => /^#[\da-f]{6}$/i.test(color));
+      choices = valid ? [{ title:paletteMode === 'colors' ? 'Apply paper and text colors' : 'Add color replacement', detail:colors.join(' → '), action:()=>{
+        if (paletteMode === 'colors') { preferences.background=colors[0]; preferences.foreground=colors[1]; preferences.theme='custom'; }
+        else { if(preferences.palette.length>=12) { toast('Maximum 12 palette mappings; remove one in Settings first.'); return; } preferences.palette.push({from:colors[0],to:colors[1]}); }
+        applyPreferences();
+      } }] : [];
     } else if (paletteMode === 'url') {
       let url: URL | undefined;
       try { url = new URL(query); } catch { url = undefined; }
@@ -664,6 +738,82 @@ async function download() {
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+async function openPrintPdf() {
+  if (!reader.document) return;
+  // Open synchronously from the user gesture so popup blockers do not discard
+  // the PDF tab while PDF.js serializes the source bytes.
+  const printTab = window.open('about:blank', '_blank');
+  if (!printTab) { toast('Allow pop-ups for Pipit to open the print-ready PDF.'); return; }
+  try {
+    const bytes = await reader.document.getData();
+    const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: 'application/pdf' }));
+    printTab.location.replace(url);
+    const cleanup = window.setInterval(() => {
+      if (printTab.closed) { clearInterval(cleanup); URL.revokeObjectURL(url); }
+    }, 5000);
+    window.addEventListener('pagehide', () => { clearInterval(cleanup); URL.revokeObjectURL(url); }, { once: true });
+  } catch (error) {
+    printTab.close();
+    throw error;
+  }
+}
+
+function openOriginalPdfForZotero() {
+  if (!originalPdfUrl) { toast('This PDF was opened from a local file; there is no browser URL to hand off.'); return; }
+  const url = new URL(originalPdfUrl);
+  // This one-navigation bypass lets Firefox's native PDF viewer and Zotero
+  // Connector see the publisher response without disabling Pipit globally.
+  url.searchParams.set('pipit-download', '1');
+  window.open(url.href, '_blank', 'noopener,noreferrer');
+}
+
+function textLineCenters() {
+  const stage = element('#reading-stage').getBoundingClientRect();
+  const viewport = reader.container.getBoundingClientRect();
+  const centers: number[] = [];
+  for (const span of reader.container.querySelectorAll<HTMLElement>('.textLayer span')) {
+    const box = span.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0 || box.bottom <= stage.top || box.top >= stage.bottom || box.bottom <= viewport.top || box.top >= viewport.bottom) continue;
+    centers.push(box.top + box.height / 2 - stage.top);
+  }
+  centers.sort((a, b) => a - b);
+  const lines: number[] = [];
+  for (const center of centers) {
+    const previous = lines.at(-1);
+    if (previous !== undefined && center - previous <= 4) lines[lines.length - 1] = (previous + center) / 2;
+    else lines.push(center);
+  }
+  return { height: stage.height, lines };
+}
+
+function placeRulerAt(center: number, stageHeight: number) {
+  const ruler = element('#reading-ruler');
+  ruler.hidden = false;
+  const top = Math.max(0, Math.min(stageHeight - ruler.offsetHeight, center - ruler.offsetHeight / 2));
+  ruler.style.top = `${(top / Math.max(1, stageHeight)) * 100}%`;
+}
+
+function moveRuler(direction: -1 | 1) {
+  const ruler = element('#reading-ruler');
+  ruler.hidden = false;
+  const { height, lines } = textLineCenters();
+  if (!height || !lines.length) { toast('The visible page has no selectable text lines for the reading ruler.'); return; }
+  const currentTop = parseFloat(ruler.style.top || '40');
+  const center = height * currentTop / 100 + ruler.offsetHeight / 2;
+  const next = direction > 0 ? lines.find(line => line > center + 3) : lines.slice().reverse().find(line => line < center - 3);
+  if (next !== undefined) { placeRulerAt(next, height); return; }
+  const gaps = lines.slice(1).map((line, index) => line - lines[index]).filter(gap => gap >= 8 && gap <= 64);
+  const lineHeight = gaps.length ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : 20;
+  const before = reader.container.scrollTop;
+  reader.container.scrollBy({ top: direction * lineHeight, behavior: 'instant' });
+  if (Math.abs(reader.container.scrollTop - before) < 1) { toast(direction > 0 ? 'You are at the last visible text line.' : 'You are at the first visible text line.'); return; }
+  requestAnimationFrame(() => {
+    const updated = textLineCenters();
+    if (!updated.lines.length) return;
+    placeRulerAt(direction > 0 ? updated.lines.at(-1)! : updated.lines[0], updated.height);
+  });
+}
+
 function previewForHit(hit: ReferenceHit): PreviewTarget {
   return { page: hit.page, y: hit.y, x: hit.x, label: hit.kind === 'equation' ? `Equation (${hit.label})` : hit.kind === 'citation' ? `Reference [${hit.label}]` : hit.label, citation: hit.kind === 'citation' ? hit.label : undefined };
 }
@@ -724,14 +874,17 @@ async function nextSection(direction: number) {
 }
 
 function runAction(action: string) {
+  if (action === 'hard-mode') { hardMode.toggle(); return; }
   if (action.startsWith('theme:')) { chooseTheme(action.slice(6)); return; }
-  const global = ['open', 'url', 'demo', 'tutor', 'commands', 'settings', 'help', 'close-dialog', 'cancel-password', 'reset-theme', 'add-color', 'theme', 'recent', 'clear-library', 'glass', 'recolor', 'background', 'foreground', 'palette-settings'];
+  const global = ['open', 'url', 'demo', 'tutor', 'commands', 'settings', 'help', 'close-dialog', 'cancel-password', 'reset-theme', 'add-color', 'theme', 'recent', 'clear-library', 'glass', 'recolor', 'background', 'foreground', 'palette-settings', 'colors', 'mapping'];
   if ((!reader.document || opening) && !global.includes(action)) { toast('Open a PDF to use this command.'); return; }
   switch (action) {
+    case 'focus-preview': if (portalTarget) element('#portal-scroll').focus(); break;
+    case 'focus-document': reader.container.focus(); break;
     case 'tutor': tutor.open(); break;
     case 'open': void openFileBrowser(); break;
     case 'demo': void openDocument(new URL('sample.pdf', document.baseURI).href, 'The art of following an idea.pdf'); break;
-    case 'commands': case 'url': case 'page': case 'equation': case 'citation': case 'figure': case 'recent': case 'contents': openPalette(action); break;
+    case 'commands': case 'url': case 'page': case 'equation': case 'citation': case 'figure': case 'recent': case 'contents': case 'passage': case 'colors': case 'mapping': openPalette(action); break;
     case 'peek-selection': case 'jump-selection': void followReference(selectedReference(), action === 'jump-selection').catch(fail); break;
     case 'next-equation': case 'previous-equation': void nextEquation(action === 'next-equation' ? 1 : -1).catch(fail); break;
     case 'next-section': case 'previous-section': void nextSection(action === 'next-section' ? 1 : -1).catch(fail); break;
@@ -741,7 +894,7 @@ function runAction(action: string) {
     case 'portal-backlinks': if (portalTarget?.citation) openResearch(portalTarget.citation); else toast('Preview a bibliography entry to see its mentions.'); break;
     case 'capture': notebook.capture(); break;
     case 'notebook': notebook.open(); break;
-    case 'scholar': { const text = selectedReference().trim(); if (text) window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(text.slice(0, 2000))}`, '_blank', 'noopener,noreferrer'); else toast('Select a title or passage in the PDF first.'); break; }
+    case 'scholar': { const text = selectedReference().trim(); if (text) window.open(`https://scholar.google.com/scholar?q=${encodeURIComponent(text.slice(0, 2000))}`, '_blank', 'noopener,noreferrer'); else openPalette('scholar-query'); break; }
     case 'search': openFind(); break;
     case 'find-next': findNext(); break;
     case 'find-prev': findNext(true); break;
@@ -756,7 +909,7 @@ function runAction(action: string) {
     }
     case 'fit-width': reader.viewer.currentScaleValue = 'page-width'; saveState(); break;
     case 'smart-width': void reader.smartWidth().then(saveState).catch(fail); break;
-    case 'vimium': vimiumMode = !vimiumMode; saveStored('paperterm.vimium', vimiumMode); element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode; toast(vimiumMode ? 'Vimium owns plain navigation keys. Use : for PDF commands; Alt+Enter peeks at a selection.' : 'Reader keyboard shortcuts enabled. x and X remain reserved for browser tabs.'); break;
+    case 'vimium': vimiumMode = !vimiumMode; saveStored('paperterm.vimium', vimiumMode); element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode; toast(vimiumMode ? 'Vimium owns plain navigation keys. Use Ctrl+K for PDF commands; Backspace returns through the paper.' : 'Reader keyboard shortcuts enabled. x and X remain reserved for browser tabs.'); break;
     case 'fit-page': reader.viewer.currentScaleValue = 'page-fit'; saveState(); break;
     case 'rotate': reader.viewer.pagesRotation = (reader.viewer.pagesRotation + 90) % 360; closeHints(); break;
     case 'spread': reader.viewer.spreadMode = reader.viewer.spreadMode ? 0 : 1; break;
@@ -779,7 +932,24 @@ function runAction(action: string) {
       void showPortal({ page, y: 0, x: portalTarget.x, label: `Page ${page} context` });
       break;
     }
-    case 'portal-jump': if (portalTarget) { const target = portalTarget; closePortal(); goTo(target.page, target.y); reader.container.focus(); } break;
+    case 'portal-jump': if (portalTarget) {
+      const target = portalTarget, wasPinned = previewPinned, origin = reader.viewer.currentPageNumber;
+      pushHistory(); closePortal(); reader.container.focus({ preventScroll: true });
+      const pending = { queuedHistory: [] as boolean[] }; pendingPortalJump = pending;
+      const finish = () => {
+        if (pendingPortalJump !== pending || !reader.document) return;
+        pendingPortalJump = null; tutor.followed(target.page, origin);
+        reader.goTo(target.page, target.y); saveState(); reader.container.focus();
+        pending.queuedHistory.forEach(historyMove);
+      };
+      if (!wasPinned) finish();
+      else {
+        // Wait for the wider reader's adaptive zoom before resolving PDF coords.
+        // Queue rapid back/forward keys instead of losing them during reflow.
+        requestAnimationFrame(() => requestAnimationFrame(finish));
+        setTimeout(finish, 200);
+      }
+    } break;
     case 'settings': renderMappings(); showDialog('#settings-dialog'); break;
     case 'glass': preferences.glass = !preferences.glass; applyPreferences(); break;
     case 'recolor': preferences.recolor = !preferences.recolor; applyPreferences(); break;
@@ -787,6 +957,8 @@ function runAction(action: string) {
     case 'help': showDialog('#help-dialog'); break;
     case 'close-dialog': { const dialog = document.querySelector<HTMLDialogElement>('dialog[open]'); if (dialog) closeDialog(dialog); break; }
     case 'download': void download().catch(fail); break;
+    case 'print': void openPrintPdf().catch(fail); break;
+    case 'open-original': openOriginalPdfForZotero(); break;
     case 'theme': chooseTheme(themes[(themes.findIndex(theme => theme.id === preferences.theme) + 1) % themes.length].id); break;
     case 'reset-theme': preferences = structuredClone(defaults); applyPreferences(); renderMappings(); break;
     case 'add-color': if (preferences.palette.length < 12) { preferences.palette.push({ from: '#0000ff', to: '#5a8a76' }); renderMappings(); applyPreferences(); } break;
@@ -942,7 +1114,8 @@ document.addEventListener('change', event => {
 });
 
 function startPrefix(value: string) {
-  prefix = value; clearTimeout(prefixTimer); prefixTimer = setTimeout(() => { prefix = ''; }, 1800);
+  prefix = value; clearTimeout(prefixTimer);
+  if (!tutor.active()) prefixTimer = setTimeout(() => { prefix = ''; }, 1800);
   if (value === 'm') toast('Set mark: press a letter a–z');
   if (value === "'") toast('Go to mark: press a letter a–z');
 }
@@ -950,10 +1123,10 @@ function startPrefix(value: string) {
 let vimiumMode = readStored<boolean>('paperterm.vimium', false);
 element<HTMLInputElement>('#vimium-toggle').checked = vimiumMode;
 element('#vimium-toggle').addEventListener('change', () => runAction('vimium'));
-document.addEventListener('keydown', event => {
+window.addEventListener('keydown', event => {
   if (event.isComposing) return;
-  const target = event.target as HTMLElement;
-  const typing = target.matches('input, textarea, select') || target.isContentEditable;
+  const target = event.target instanceof HTMLElement ? event.target : document.activeElement instanceof HTMLElement ? document.activeElement : document.body;
+  const typing = !(tutor.active() && (target.matches('#tutor-keyboard, #tutor-preview-keyboard') || !!target.closest('#tutor-panel'))) && (target.matches('input, textarea, select') || target.isContentEditable);
   const modifier = event.ctrlKey || event.metaKey;
   if (event.key === 'Escape') {
     if (document.querySelector('dialog[open]')) return;
@@ -974,6 +1147,7 @@ document.addEventListener('keydown', event => {
   if (modifier && event.key.toLowerCase() === 'o') { event.preventDefault(); runAction('open'); return; }
   if (modifier && event.key.toLowerCase() === 'k') { event.preventDefault(); runAction('commands'); return; }
   if (modifier && event.key.toLowerCase() === 'f' && reader.document) { event.preventDefault(); openFind(); return; }
+  if (modifier && event.key.toLowerCase() === 'p' && reader.document && !typing) { event.preventDefault(); runAction('print'); return; }
   if (typing || (target.tagName === 'BUTTON' && [' ', 'Enter'].includes(event.key))) return;
   if (event.altKey && event.key === 'Enter' && reader.document) { event.preventDefault(); runAction(event.shiftKey ? 'jump-selection' : 'peek-selection'); return; }
   if (event.key === 'x' && !modifier && !event.altKey) {
@@ -981,7 +1155,11 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.key === 'X' && !modifier && !event.altKey) return;
-  if (vimiumMode && !modifier && !event.altKey && ![':', ','].includes(event.key)) return;
+  if (vimiumMode && !hardMode.enabled() && !modifier && !event.altKey && ![':', ',', 'Backspace'].includes(event.key)) return;
+  if (hints.length && event.key === 'Backspace' && !modifier && !event.altKey) {
+    event.preventDefault(); hintPrefix = hintPrefix.slice(0, -1);
+    hints.forEach(hint => { hint.button.hidden = !hint.label.startsWith(hintPrefix); }); return;
+  }
   if (hints.length && !modifier && !event.altKey && event.key.length === 1) {
     event.preventDefault(); hintPrefix += event.key.toLowerCase();
     const exact = hints.find(hint => hint.label === hintPrefix);
@@ -989,6 +1167,8 @@ document.addEventListener('keydown', event => {
     else { hints.forEach(hint => { hint.button.hidden = !hint.label.startsWith(hintPrefix); }); if (!hints.some(hint => hint.label.startsWith(hintPrefix))) closeHints(); }
     return;
   }
+  // Pressing Shift to enter an uppercase leader must not consume the prefix.
+  if (prefix && ['Shift', 'Control', 'Alt', 'Meta', 'AltGraph'].includes(event.key)) return;
   if (prefix && !modifier && !event.altKey) {
     const pending = prefix; prefix = ''; clearTimeout(prefixTimer);
     if (pending === 'g' && event.key === 'g') { event.preventDefault(); goTo(1); return; }
@@ -996,13 +1176,14 @@ document.addEventListener('keydown', event => {
     if (/^[a-z]$/.test(event.key) && pending === 'm') { event.preventDefault(); state.marks[event.key] = { page: reader.viewer.currentPageNumber, y: reader.offset }; saveState(); toast(`Mark ${event.key} → page ${reader.viewer.currentPageNumber}`); return; }
     if (/^[a-z]$/.test(event.key) && pending === "'") { event.preventDefault(); const mark = state.marks[event.key]; if (typeof mark === 'number') goTo(mark); else if (mark) { pushHistory(); reader.restoreFraction(mark.page, mark.y); } else toast(`Mark ${event.key} has not been set.`); return; }
   }
+  if (event.key === 'Backspace' && !modifier && !event.altKey && reader.document) { event.preventDefault(); historyMove(!event.shiftKey); return; }
   if (event.altKey && ['ArrowLeft', 'ArrowRight'].includes(event.key) && reader.document) { event.preventDefault(); historyMove(event.key === 'ArrowLeft'); return; }
   if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key) && portalTarget) { event.preventDefault(); movePreview(event.key === 'ArrowUp' ? -1 : 1); return; }
   if (event.altKey && ['PageUp', 'PageDown'].includes(event.key) && portalTarget) { event.preventDefault(); runAction(event.key === 'PageUp' ? 'preview-previous-page' : 'preview-next-page'); return; }
-  if (event.key === 'Enter' && portalTarget && target.closest('#portal')) { event.preventDefault(); runAction('portal-jump'); return; }
+  if (event.key === 'Enter' && portalTarget && !target.closest('button, summary, a, [role="button"]') && !modifier && !event.altKey) { event.preventDefault(); runAction('portal-jump'); return; }
   if (modifier || event.altKey) return;
   if (['d', 'u'].includes(event.key) && reader.document) { event.preventDefault(); const container = (portalTarget && !previewPinned) || target.closest('#portal') ? element('#portal-scroll') : reader.container; container.scrollBy({ top: container.clientHeight * (event.key === 'd' ? .5 : -.5), behavior: 'instant' }); return; }
-  const actions: Record<string, string> = { o: 'open', O: 'recent', '?': 'help', ',': 'settings', '/': 'search', ':': 'commands', p: 'page', P: 'pin-portal', e: 'equation', c: 'citation', v: 'figure', q: 'capture', Q: 'notebook', t: 'sidebar', b: 'bookmark', B: 'bookmarks', z: 'focus', r: 'ruler', R: 'rotate', w: 'fit-width', W: 'smart-width', a: 'fit-page', f: 'links', F: 'preview-links', s: 'smart-hints', '+': 'zoom-in', '=': 'zoom-in', '-': 'zoom-out' };
+  const actions: Record<string, string> = { o: 'open', O: 'recent', '?': 'help', ',': 'settings', '/': 'search', ':': 'commands', p: 'page', P: 'pin-portal', e: 'equation', c: 'citation', v: 'figure', q: 'capture', Q: 'notebook', t: 'sidebar', b: 'bookmark', B: 'bookmarks', z: 'focus', r: 'ruler', R: 'rotate', w: 'fit-width', W: 'smart-width', a: 'fit-page', f: 'links', F: 'preview-links', s: 'smart-hints', '+': 'zoom-in', '=': 'fit-width', '-': 'zoom-out' };
   if (actions[event.key]) { event.preventDefault(); runAction(actions[event.key]); return; }
   if (event.key === 'g') { event.preventDefault(); startPrefix('g'); return; }
   if (!reader.document) return;
@@ -1012,11 +1193,13 @@ document.addEventListener('keydown', event => {
     const down = ['j', 'ArrowDown'].includes(event.key), up = ['k', 'ArrowUp'].includes(event.key);
     const pageDown = [' ', 'PageDown'].includes(event.key);
     const horizontal = ['h', 'l', 'ArrowLeft', 'ArrowRight'].includes(event.key);
+    const before = scrollContainer.scrollTop;
     scrollContainer.scrollBy({ top: horizontal ? 0 : down ? 65 : up ? -65 : scrollContainer.clientHeight * (pageDown && !event.shiftKey ? .85 : -.85), left: horizontal ? ['h', 'ArrowLeft'].includes(event.key) ? -65 : 65 : 0, behavior: 'instant' });
+    if (scrollContainer === reader.container) tutor.moved(event.key, before, scrollContainer.scrollTop);
   } else if (event.key === 'g' || event.key === 'm' || event.key === "'") { event.preventDefault(); startPrefix(event.key); }
   else if (event.key === 'G') { event.preventDefault(); goTo(reader.document.numPages); }
   else if (event.key === 'n' || event.key === 'N') { event.preventDefault(); findNext(event.key === 'N'); }
-  else if (event.key === ']' || event.key === '[') { event.preventDefault(); const ruler = element('#reading-ruler'); ruler.hidden = false; const position = parseFloat(ruler.style.top || '40'); ruler.style.top = `${Math.min(95, Math.max(5, position + (event.key === ']' ? 3 : -3)))}%`; }
+  else if (event.key === ']' || event.key === '[') { event.preventDefault(); moveRuler(event.key === ']' ? 1 : -1); }
 });
 
 document.querySelectorAll<HTMLDialogElement>('dialog').forEach(dialog => {

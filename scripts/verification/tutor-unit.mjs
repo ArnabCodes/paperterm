@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 const compiled = ts.transpileModule(readFileSync('src/tutor-state.ts', 'utf8'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { normalizeTutorProgress, tutorMissions, tutorXp, tutorMaxXp, tutorMissionPassed } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const { normalizeTutorProgress, tutorMissions, tutorXp, tutorMaxXp, tutorMissionPassed, tutorKeyboardPassed, tutorKeys } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const before = { ready:true, page:1, query:'', matches:0, preview:false, previewPage:0, pinned:false, theme:'paper', bookmarked:false, notes:0, ruler:false, spread:0, returns:0 };
-const actions = { navigate:{page:2}, search:{query:'coherence',matches:3}, preview:{preview:true,previewPage:3}, pin:{pinned:true}, trail:{returns:1}, theme:{theme:'nord'}, bookmark:{bookmarked:true}, notes:{notes:1}, ruler:{ruler:true}, spread:{spread:1} };
+const actions = { move:{down:1,up:1}, navigate:{page:2}, search:{query:'coherence',matches:3}, preview:{preview:true,previewPage:3}, pin:{pinned:true}, trail:{returns:1}, theme:{theme:'nord'}, bookmark:{bookmarked:true}, notes:{notes:1}, ruler:{ruler:true}, spread:{spread:1} };
 for (const mission of tutorMissions) {
   assert.equal(tutorMissionPassed(mission.id,before,before),false,`${mission.id}: no passive awards`);
   assert.equal(tutorMissionPassed(mission.id,before,{...before,...actions[mission.id]}),true,mission.id);
   assert.equal(tutorMissionPassed(mission.id,before,{...before,...actions[mission.id],ready:false}),false,`${mission.id}: wait for document`);
+  assert.equal(tutorKeyboardPassed(mission.id,[]),false,`${mission.id}: state alone never earns credit`);
+  assert.equal(tutorKeyboardPassed(mission.id,tutorKeys[mission.id]),true,`${mission.id}: taught shortcut sequence accepted`);
+  assert.equal(tutorKeyboardPassed(mission.id,tutorKeys[mission.id].slice(1)),false,`${mission.id}: partial sequence rejected`);
 }
 assert.equal(tutorMissionPassed('search',before,{...before,query:'coherence',matches:0}),false);
 assert.equal(tutorMissionPassed('preview',before,{...before,preview:true,previewPage:4}),false);
@@ -17,4 +21,16 @@ assert.deepEqual(normalizeTutorProgress(null),{completed:[],skipped:[]});
 assert.equal(tutorMaxXp,300);
 assert.equal(tutorXp({completed:tutorMissions.map(m=>m.id),skipped:[]}),300);
 assert.equal(tutorXp({completed:[],skipped:tutorMissions.map(m=>m.id)}),0);
-console.log('37 tutorial checks passed: real actions, wrong targets, loading, storage recovery and XP.');
+assert.equal(tutorMissionPassed('navigate',before,{...before,page:3}),false);
+assert.equal(tutorMissionPassed('move',before,{...before,down:1}),false);
+assert.equal(tutorKeyboardPassed('trail',['Enter','g','h']),true);
+assert.equal(tutorKeyboardPassed('trail',['Enter','g','Shift','h']),true, 'modifier taps do not erase an accepted reader prefix');
+assert.equal(tutorKeyboardPassed('trail',['g','i','Enter','Backspace']),true);
+assert.equal(tutorKeyboardPassed('trail',['g','i','Enter','Alt+ArrowLeft']),true);
+assert.equal(tutorKeyboardPassed('trail',['Backspace','Enter']),false,'must follow before returning');
+const paperTask = pdfjs.getDocument({data:new Uint8Array(readFileSync('public/tutor.pdf'))});
+const paper = await paperTask.promise;
+assert.equal(paper.fingerprints[0], '31c7870ac620bf76247ea22d0ec51198', 'tutorial notes and bookmarks retain their document identity');
+assert.equal(paper.numPages, 6, 'tutorial page anchors remain in the six-page paper');
+await paperTask.destroy();
+console.log('Tutorial checks pass: 11 lessons, actual outcomes plus shortcut evidence, no passive/partial awards, storage recovery and 300 XP.');

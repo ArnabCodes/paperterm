@@ -5,7 +5,7 @@ async (page) => {
   await page.getByRole('textbox', { name: 'PDF password', exact: true }).fill('wrong-password');
   await page.getByRole('button', { name: 'Unlock PDF', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#password-error').textContent.length > 0);
-  await page.getByRole('textbox', { name: 'PDF password', exact: true }).fill('paperterm-test');
+  await page.getByRole('textbox', { name: 'PDF password', exact: true }).fill('pipit-test');
   await page.getByRole('button', { name: 'Unlock PDF', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('#page-total').textContent === '6' && document.querySelector('#loading').hidden);
   await page.locator('#file-input').setInputFiles('output/playwright/fixtures/encrypted.pdf');

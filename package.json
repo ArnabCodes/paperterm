@@ -1,7 +1,7 @@
 {
   "name": "pipit",
   "private": true,
-  "version": "0.10.0",
+  "version": "0.11.7",
   "type": "module",
   "description": "A quiet PDF workspace with keyboard navigation and reference portals",
   "scripts": {

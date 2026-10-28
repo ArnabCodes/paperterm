@@ -1,4 +1,46 @@
-# Pipit Alpha 03 — release dashboard
+# Pipit Alpha 04 — release dashboard
+
+## 0.11.7 PDF workflow fixes — 28 October 2026
+
+Local source update for the ruler, printing and browser interoperability feedback. The reading ruler follows visible PDF text lines and scrolls one line at viewport edges. Ctrl+P / ⌘+P opens PDF.js document bytes in the browser’s native PDF viewer for printing without first saving a copy. `g Z` opens a remote PDF at its original URL with the one-time `pipit-download=1` bypass for Firefox/Zotero Connector. Chromium and Firefox leave Overleaf-originated top-level PDF tabs untouched so Overleaf retains its own SyncTeX viewer. Pipit itself does not implement SyncTeX. `npm run build`, `npm run package`, and `npm run build:site` completed; browser behavior was not exercised in this pass. No website deployment or store submission is included in this source update.
+
+## 0.11.6 Flight School — 27 October 2026
+
+Published to https://pipit-reader.pages.dev/ and https://ca2a5f55.pipit-reader.pages.dev/. Manifest: `docs/releases/0.11.6-alpha.4.json`. Lesson 6 recognizes valid modifier-tolerant key sequences and verifies the restored scroll position instead of PDF.js's active-page heuristic. An Advanced course and shuffled Feather Relay have separate progress. Chromium and WebKit completed both routes locally and live; real Vimium history, Chromium extension, 39 Firefox development extension checks and 41 public download checks passed. Native Safari and other keyboard extensions remain untested. No Git push or store submission.
+
+## 0.11.5 history and lesson six — 27 October 2026
+
+Published to https://pipit-reader.pages.dev/ and https://7d5a5bf1.pipit-reader.pages.dev/. Manifest: `docs/releases/0.11.5-alpha.4.json`. Back/forward use g h/g l or Backspace/Shift Backspace; prior Alt arrows remain. The tutorial restores its missing preview when resumed or selected, handles follow/return through pane reflow and permits replay without duplicate XP. Its revised PDF retains its first document ID and existing notes. Local/live Chromium and WebKit, real Vimium, Chromium extension, 37 Firefox development extension checks, full alpha gate and 41 public download checks passed. Native Safari remains untested. No GitHub push or store submission.
+
+## 0.11.2 keyboard compatibility — 27 October 2026
+
+Published to https://pipit-reader.pages.dev/ and https://9a426075.pipit-reader.pages.dev/. Manifest: `docs/releases/0.11.2-alpha.4.json`. Full alpha gate and 41 independent public checks pass; complete live course passes in Chromium, WebKit and Chromium with Vimium. Surfingkeys needs its site toggle; safe pause and the complete course after recovery pass locally. Firefox temporary extension passes 36 checks. Safari is source-only; native Safari was not tested. No GitHub push or store submission.
+
+## Flight School reliability and arcade design — 27 October 2026
+
+Published 0.11.1 at https://debffe7d.pipit-reader.pages.dev/ and production. Manifest: `docs/releases/0.11.1-alpha.4.json`. No Git commit/push, GitHub release upload or store submission for this patch.
+
+Reproduced the opening dead path: Enter on the old default radio option did not start play. The input path also rejected forwarded KeyboardEvents and relied on delayed PDF layout/global focus without direct feedback. The new focused Play button starts with Enter; continuous scroll/layout is prepared first, movement is handled at window capture with explicit scroll outcomes, and forwarded events are accepted. Main reader hotkeys also tolerate a window event target. A realistic beginner test pauses over two seconds between g and d; training prefixes now wait instead of expiring. Level changes and pause clear stale prefixes. Mouse/gesture blocking and actual-outcome requirements remain intact.
+
+Design reference: https://codex-resets.com/tibo-28, visually inspected for its warm dark/cream palette, orange/gold/green accents, outlined cards, offset shadows, chunky type and progress tiles. Original SVG bird/platform/feather art and CSS motion were authored locally; no reference-site artwork was copied. Flight School has a short Play screen, eleven collectible-feather levels, lit keycaps, XP, progressive walkthroughs, inline modal hints and a friendly pause/resume screen. Guided and Practice runs use v3 storage; old records, notes and bookmarks remain untouched. Reduced motion is respected. The LaTeX paper was recompiled twice and remains six pages; changed page 1 was visually inspected.
+
+Validation: full verify:alpha gate passes. Full eleven-level course / 300 XP passes locally and on production using Enter progression, inline notebook guidance, a delayed key sequence, separate practice, pointer blockade, colors, quote capture and emergency recovery. A new four-viewport regression (1280×720, 1920×1080, 2560×1600, 1024×600) sends j immediately after the panel becomes ready, without focus repair or screenshot delays. It verifies actual down/up scrolling, live game feedback, coach focus, forwarded window events, Vimium preference, pause/resume and manual hard-mode release. Chromium extension opening regressions plus course launch/movement pass. Firefox 158 passes 36 extension checks, including native Enter start/next, actual j/k and page navigation, Esc pause and Enter resume. Safari source parity is checked; macOS runtime remains untested.
+
+The supplied game client completed j/k and observed 20 XP. Its ignored local copy has j/k aliases, skips hidden canvases, and waits for game readiness before actions. Desktop/mobile screenshots, intro, won-feather and pause states were visually inspected. Website/docs launch and social previews pass; 41 independent public package/size/SHA-256 checks pass. Evidence: output/playwright/arcade-*, output/playwright/arcade/, output/playwright/v0111-public-downloads.json. Source changes remain local.
+
+## Keyboard-first learning and hard mode — 27 October 2026
+
+Published 0.11.0 / Alpha 04, deployment https://780861a1.pipit-reader.pages.dev/ and production alias. Manifest: `docs/releases/0.11.0-alpha.4.json`. Source changes remain local; no Git commit/push, GitHub release or store submission was performed for this update.
+
+The keyboard audit added preview/document focus commands, searchable anchored text-line capture, typed hex background/foreground and palette mappings, and Scholar queries without selection. The tutor now has 9 core lessons plus 2 optional challenges / 300 XP. Learn shows numbered steps with no assumed Vim knowledge. Practice initially hides steps and keeps separate progress in `pipit.tutor.v2`; old records remain untouched. Keyboard sequences and actual outcomes are both required for credit. A GUI action alone cannot earn points. Guided lessons enter hard mode automatically; manual `:HardMode` works on ordinary PDFs. Mouse, hover, wheel, touch, context menus and drag are blocked inside the page; native keyboard/assistive activation remains usable. Ctrl Shift F12 exits and pauses even in a modal. Reload recovers normal input. Browser chrome, OS shortcuts and system dialogs remain outside the policy.
+
+Validation: full `npm run verify:alpha` passes, including tutorial state/shortcut tests, 16 archive parity checks over 305 shared files, documentation/public-copy and site artifact checks. The full 11-lesson course completes through trusted key events, both locally and on production. Regression checks cover independent modes, saved 300 XP, hidden practice steps, native keyboard buttons under hard mode, pointer/wheel/drag/touch/context-menu blockade, no shortcut credit for a GUI path, quote capture, typed colors/mappings, dialog escape and reload recovery. No page errors observed. Chromium extension passes its 9 PDF interception/download regressions plus keyboard lessons, hard mode and exit. Firefox 158 passes 34 extension checks including guided steps, hard mode, actual j/k movement and p navigation, research search, notebook round trip and real OpenAlex expansion. Final small content/layout adjustments were rechecked in Chromium; Firefox runtime evidence predates those presentation-only edits.
+
+All changed LaTeX pages and desktop/mobile screenshots were visually reviewed; PDF remains six pages and equation (2) remains on page 3. The supplied game client ran successfully; its ignored local copy skips hidden canvases so the closed preview canvas cannot stall screenshot capture. Live website/docs launch passes at 1440/768/390px; social preview checks remain valid. All three public packages passed 41 HTTPS/size/SHA-256 checks. Hosted tutor PDF independently matches `tutorial/build.json`. Evidence: `output/playwright/keyboard-tutor-*`, `output/playwright/keyboard-tutor/`, `output/playwright/v0110-public-downloads.json`. Safari source parity is checked, but runtime testing remains unavailable on this Windows host.
+
+## Branding patch — 26 October 2026
+
+Version 0.10.1, deployment https://fefe40fe.pipit-reader.pages.dev/, removes obsolete migration FAQ/release copy and updates documentation, font/icon notices and package installation instructions to Pipit. Existing storage keys, Firefox identity and download-bypass compatibility remain internal and stable. Public copy audit now rejects the obsolete product name. Full release validation, six-page social metadata/image checks and 41 public download/hash checks pass. Bird-icon social previews from deployment afe271dc remain intact. Source changes are local; this patch did not create a Git commit or push.
 
 ## Pipit Tutor — 26 October 2026
 
@@ -60,7 +102,7 @@ node scripts/verification/public-downloads.mjs https://pipit-reader.pages.dev do
 
 ## Historical Alpha 01 record
 
-Version: 0.8.0. GitHub release tag: `v0.8.0-alpha.1`. Product rename: Paperterm → Pipit. This is an experimental desktop-browser reader, not production certification or full Sioyek parity.
+Version: 0.8.0. GitHub release tag: `v0.8.0-alpha.1`. This is an experimental desktop-browser reader, not production certification or full Sioyek parity.
 
 ## Release gates
 
@@ -100,7 +142,7 @@ node scripts/verification/public-downloads.mjs https://pipit-reader.pages.dev
 
 ## GitHub
 
-The repository stays private at `ArnabCodes/paperterm` to preserve history and existing links. The product, visible UI, package names and distribution page are Pipit. [Pipit Alpha 01](https://github.com/ArnabCodes/paperterm/releases/tag/v0.8.0-alpha.1) is published as a private prerelease at commit `6381798`; all three downloaded GitHub artifacts were independently checked against the release manifest hashes. Public downloads are served from Cloudflare rather than private GitHub asset URLs. Store listings and public repository visibility are not authorized by this change.
+The repository stays private. Alpha 01 was published as a private prerelease at tag `v0.8.0-alpha.1`, commit `6381798`; all three downloaded GitHub artifacts were independently checked against release manifest hashes. Public downloads are served from Cloudflare.
 
 ## Known alpha gaps
 

@@ -10,6 +10,7 @@ for (const path of ['index.html', 'docs/index.html', 'privacy.html', 'release-no
     html = await response.text();
   } else html = readFileSync(`site-dist/${path}`, 'utf8');
   copy.set(path, html);
+  assert.doesNotMatch(html, /paperterm/i, `${path}: obsolete product name must not appear in public copy`);
   assert.doesNotMatch(html, /blinking text caret|caret-browsing|browser-wide accessibility|\bF7\b|reported ScienceDirect|private development repository|runtime validation remains open|Generated from the reader’s current command definitions/i, path);
 }
 const docs = copy.get('docs/index.html');

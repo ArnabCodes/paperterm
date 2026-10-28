@@ -116,16 +116,16 @@ The scripts are Playwright CLI `run-code` functions, not Playwright Test specs. 
 
 ```sh
 npx playwright install chromium
-npx --yes --package @playwright/cli playwright-cli -s=paperterm open "http://127.0.0.1:4173/?demo=1#page=1"
-npx --yes --package @playwright/cli playwright-cli -s=paperterm resize 1440 960
-npx --yes --package @playwright/cli playwright-cli -s=paperterm snapshot
-npx --yes --package @playwright/cli playwright-cli -s=paperterm run-code --filename scripts/verification/keyboard.js
-npx --yes --package @playwright/cli playwright-cli -s=paperterm run-code --filename scripts/verification/documents.js
+npx --yes --package @playwright/cli playwright-cli -s=pipit open "http://127.0.0.1:4173/?demo=1#page=1"
+npx --yes --package @playwright/cli playwright-cli -s=pipit resize 1440 960
+npx --yes --package @playwright/cli playwright-cli -s=pipit snapshot
+npx --yes --package @playwright/cli playwright-cli -s=pipit run-code --filename scripts/verification/keyboard.js
+npx --yes --package @playwright/cli playwright-cli -s=pipit run-code --filename scripts/verification/documents.js
 ```
 
 Create `output/playwright/fixtures/` and download the linked research PDF there before the documents scenario. Run keyboard then documents in that order; the first starts from page 1 of the demo. Screenshots and profiles remain under ignored output paths.
 
-For the password scenario, generate an encrypted copy of `dist/sample.pdf` named `output/playwright/fixtures/encrypted.pdf`, with user password `paperterm-test`. The local run used pypdf in an isolated, ignored test-only Python environment. Python is not required by the app or ordinary build. Run the scenario with the same CLI `run-code --filename scripts/verification/password.js` command.
+For the password scenario, generate an encrypted copy of `dist/sample.pdf` named `output/playwright/fixtures/encrypted.pdf`, with user password `pipit-test`. The local run used pypdf in an isolated, ignored test-only Python environment. Python is not required by the app or ordinary build. Run the scenario with the same CLI `run-code --filename scripts/verification/password.js` command.
 
 Run `scripts/verification/preferences.js` after the other web scenarios. It uses the generated demo and cached research PDF, exercises palette mapping and document switching, and resets theme settings to Paper afterward.
 

@@ -1,4 +1,9 @@
 \documentclass[10pt,twocolumn]{article}
+% Keep the original document identifier so existing tutorial notes/bookmarks
+% remain attached when these instructions are revised. The second ID marks
+% this revised edition; it is not used as the document identity.
+\pdftrailerid{}
+\pdftrailer{/ID [<31c7870ac620bf76247ea22d0ec51198><d0b131ed1c52437db770e75461a31bc7>]}
 \usepackage[letterpaper,margin=1.8cm,headheight=15pt,headsep=18pt]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern,amsmath,amssymb,graphicx,booktabs,xcolor,tikz,fancyhdr}
@@ -30,11 +35,11 @@ Research reading combines local inspection with deliberate navigation: finding a
 \section{An invitation to investigate}
 A useful result is rarely understood in isolation. Its symbols must be defined, its evidence inspected, and its sources considered. Our specimen asks a simple question: when do repeated observations tell a coherent story?
 The word \emph{coherence} is the first search target. Later pages introduce a scoring rule and a synthetic experiment. Your task is not to memorize them, but to learn how to move between them without losing your reading position.
-\mission{Start the expedition}{Open Pipit's command menu with \key{:}, type \key{Tutor}, and press Enter. The on-screen tutor checks real reader actions; the paper itself remains an ordinary PDF.}
+\mission{Start the expedition}{Press \key{:}, type \key{Tutor}, then Enter. Play starts a guided flight; Practice is for recall. Start with \key{j} (down), then \key{k} (up). No Vim experience is needed.}
 \subsection{Your route}
 Page 2 introduces the navigation task. Page 3 defines the model, including \hyperref[eq:coherence]{equation (2)}. Page 4 supplies a figure and a table. Page 5 offers comparison and note-taking challenges. Page 6 contains references and a final checklist.
 \section{How to read this specimen}
-Follow the mission panel at your own pace. Use either the mouse or the keyboard. The same action can be found through the command menu if a shortcut conflicts with your browser.
+Training is keyboard-only. Guided play explains each keystroke; Practice initially hides help. Enter advances after success. Escape closes a tool, then pauses the game. \key{Ctrl+Shift+F12} always restores the mouse.
 The reference lens is a temporary window into a different part of this PDF. It can be pinned for side-by-side reading. In a two-column paper, its initial view follows a detected column rather than shrinking an entire page.
 \mission{A reference to try}{Preview \hyperref[eq:coherence]{equation (2)}, then inspect \hyperref[tab:results]{Table 1} and \hyperref[fig:signals]{Figure 1}. A wrong crop is recoverable: use \key{g P} for the full page.}
 \subsection{A fair learning loop}
@@ -52,7 +57,7 @@ Find \emph{coherence} with \key{/}. The search reads the PDF's text layer and hi
 Search can fail on scans or unusual encodings. A zero-result search is not evidence that a concept is absent from the underlying scanned document.
 \mission{Mission: find the signal}{Search for \key{coherence}. A visible search result completes the mission. Close the search bar with Escape when you are ready to inspect a reference.}
 \subsection{Return points}
-After jumping from this page to a definition, \key{Alt+Left} returns through the reading trail. \key{Alt+Right} moves forward. The arrow keys alone still serve ordinary navigation contexts.
+After jumping to a definition, press \key{g} then \key{h} to return, or \key{g} then \key{l} to move forward. Backspace and Shift+Backspace also traverse the reading trail.
 \section{What the experiment is not}
 The numerical values in this paper are fabricated, consistent teaching examples. They do not establish an improvement over another PDF reader or a theory of human learning.
 Our only testable interface claim is local: if the reader exposes an action and the tutor observes its successful outcome, that mission can be marked complete.
@@ -77,14 +82,14 @@ C=\frac{1}{1+\sum_{i=1}^{n}w_i(x_i-\mu)^2}.
 \label{eq:coherence}
 \end{equation}
 Here $0<C\leq1$ for finite observations. This is only a teaching definition, not a validated metric for research quality.
-\mission{Mission: inspect equation (2)}{Press \key{e}, type \key{2}, and press Enter to preview the equation. Alternatively, use \key{F} over a visible reference and type its hint. The tutor waits for a rendered preview.}
+\mission{Mission: inspect equation (2)}{Press \key{e}, type \key{2}, then Enter. The tutor requires this shortcut and a rendered preview. Leave the lens open for the next lesson.}
 \subsection{Why definitions matter}
 The denominator in equation (2) combines normalization and variance. An interpretation that ignores either term would overstate what the score measures. The quantity is deliberately simple enough to compare against \hyperref[tab:results]{Table 1}.
 \subsection{The lens as a working surface}
 Scroll inside a preview to reveal more context. Use \key{Alt+PageUp} and \key{Alt+PageDown} to navigate its pages independently. The main document stays in place.
 \section{Comparing a claim with its definition}
 A pinned lens is useful when a later paragraph depends on a symbol introduced several pages earlier. Keep equation (2) visible while reading the synthetic results.
-\mission{Mission: pin a reference}{With the preview open, press \key{Shift+P} or use its context menu to pin it. Resize the divider with the mouse, or focus it and use the arrow keys.}
+\mission{Mission: pin a reference}{With the preview open, hold Shift and press \key{p}. To resize the pinned pane, press Tab until its divider is focused, then use the arrow keys.}
 \subsection{A derived comparison}
 If all observations are identical, then $C=1$. If the weighted dispersion is $v$, then
 \begin{equation}
@@ -95,7 +100,7 @@ C(v+\Delta v)-C(v)
 For a positive change in dispersion, the score decreases. This is an algebraic property of our definition, not a statement about a physical system.
 \subsection{Read both columns}
 This page deliberately uses two columns. Previewing a definition should initially fit its column. A full-width figure may need different bounds; use the full-page fallback whenever an automatic crop omits relevant content.
-\mission{Mission: follow and return}{Choose Follow passage from the preview's context menu (or focus the preview and press Enter), then use \key{Alt+Left} to return. The tutor checks that a real history return occurred.}
+\mission{Mission: follow and return}{Press Enter to follow the lens. Press \key{g}, then \key{h} to return; Backspace also goes back. Both the taught shortcut and a real outcome are required for credit.}
 \newpage
 \tagline{Waypoint 3 / Check a figure and table}
 \section{Synthetic observations}
@@ -142,7 +147,7 @@ Which operation would best test a claim: making its graph more attractive, or ch
 \tagline{Waypoint 4 / Preserve the evidence}
 \section{A reading notebook}
 Good notes identify both a passage and why it matters. They can record a question, a disagreement, or the assumption that makes a result applicable.
-\mission{Mission: save a note}{Select a passage and press \key{q} to capture it, or open the notebook with \key{Shift+Q} and add a text note. Enter a useful sentence; the tutor checks saved note content rather than merely opening the panel.}
+\mission{Mission: save a note}{Hold Shift and press \key{q}. In the notebook, press \key{Ctrl+Enter} (Command on Mac) to add a note, then type a sentence. It saves as you type. Escape closes the notebook.}
 \subsection{Anchors and portability}
 Pipit keeps notes separately from the original PDF. A notebook backup is a JSON sidecar; Markdown export includes readable quotes and page references. These exports are not PDF-embedded annotations.
 Do not mistake browser storage for a permanent archive. Export important notes before switching profiles, reinstalling extensions, or clearing local data.
@@ -183,7 +188,7 @@ The sources below are real publications, included as navigational examples rathe
 \section{Reference practice}
 The distinction between a source and a claim is central to reading. Bush's essay \cite{bush} offers historical context for linked information. Shannon's paper \cite{shannon} supplies an example of a precisely defined quantity. Tufte's book \cite{tufte} offers a source for thinking about visual explanation.
 No network lookup is needed to preview these bibliography entries. The local reference graph can show numeric citation mentions inside this PDF.
-\mission{Your next paper}{Close the tutor panel whenever you choose. Open a local PDF with \key{o}, or use the URL command \key{g o}. The commands you practiced remain available outside the tutorial.}
+\mission{Your next paper}{Press \key{Ctrl+Shift+F12} to pause and restore pointer input. Open a PDF with \key{o}, or a URL with \key{g o}. Use \key{:HardMode} for keyboard-only reading outside lessons.}
 \subsection{Accessibility and pace}
 All tutorial controls can be reached with Tab and activated with Enter or Space. Hints are free, progress is local, animations respect reduced-motion settings, and no mission requires online access.
 \end{document}

@@ -18,7 +18,7 @@ if (labels[environment.browser]) {
   card.querySelector('.recommendation').hidden = false;
   document.querySelector('#recommended-link').textContent = environment.browser === 'safari' ? 'Safari source & setup ↓' : `Get the ${labels[environment.browser]} alpha ↓`;
   document.querySelector('#recommended-link').href = `#download-${environment.browser}`;
-  document.querySelector('#detected-browser').textContent = `For ${labels[environment.browser]} on ${environment.os} · Alpha 03 · No account`;
+  document.querySelector('#detected-browser').textContent = `For ${labels[environment.browser]} on ${environment.os} · Alpha 04 · No account`;
 }
 document.querySelector('#platform-note').textContent = environment.mobile ? `You’re on ${environment.os}. Extension downloads are for desktop browsers only; try the web reader or choose a desktop package below.` : `Detected ${labels[environment.browser] || 'an unrecognized browser'} on ${environment.os}. Choose any package below; detection never hides alternatives.`;
 document.querySelectorAll('[data-target]').forEach(link => link.addEventListener('click', () => showInstall(link.dataset.target === 'chrome' ? 'chromium' : link.dataset.target)));

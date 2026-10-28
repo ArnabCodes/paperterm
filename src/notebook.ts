@@ -9,7 +9,7 @@ export interface NotebookHooks {
   goTo(page: number, offset?: number): void;
   toast(message: string): void;
 }
-export interface NotebookController { open(): void; capture(): void; reset(): void; rememberSelection(): void }
+export interface NotebookController { open(): void; capture(): void; captureText(excerpt:string,page:number,offset:number): void; reset(): void; rememberSelection(): void }
 
 const entryLimit = 200;
 const excerptLimit = 8000;
@@ -305,5 +305,11 @@ export function initializeNotebook(hooks: NotebookHooks): NotebookController {
     finally { if (url) { const downloadUrl = url; window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000); } }
   });
 
-  return { open, capture, reset, rememberSelection };
+  function captureText(excerpt:string,page:number,offset:number) {
+    const current = hooks.getDocument();
+    if (!current || !excerpt.trim() || !Number.isInteger(page) || page < 1 || page > (current.pageCount || Infinity) || !loadDocument()) return;
+    const id = addEntry({ excerpt:excerpt.trim(), page, offset:Math.max(-1,Math.min(1,offset)) });
+    if (id) { if (!dialog.open) dialog.showModal(); focusNote(id); }
+  }
+  return { open, capture, captureText, reset, rememberSelection };
 }

@@ -1,0 +1,26 @@
+{
+  "name": "Pipit",
+  "version": "0.11.4",
+  "channel": "alpha",
+  "release": "Alpha 04",
+  "downloads": {
+    "chrome": {
+      "url": "/downloads/pipit-0.11.4-chrome.zip",
+      "sha256": "d60b5d7a7e2a6aed8c4deb90404a78c7f33ed8b520b6878f27180fe96c8f9462",
+      "bytes": 4008230,
+      "status": "unpacked"
+    },
+    "firefox": {
+      "url": "/downloads/pipit-0.11.4-firefox.xpi",
+      "sha256": "e05c6fd0d924fb1c247457a969943f6210a4882cca153fb45887c9773be31928",
+      "bytes": 4008154,
+      "status": "unsigned-temporary"
+    },
+    "safari": {
+      "url": "/downloads/pipit-0.11.4-safari-source.zip",
+      "sha256": "6d39243612b1a2377e999ac12ec0c433c4f0d22a2285a720dd39bd92c728c492",
+      "bytes": 4008233,
+      "status": "source-only"
+    }
+  }
+}

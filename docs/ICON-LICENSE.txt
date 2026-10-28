@@ -1,4 +1,4 @@
-Paperterm inline icons
+Pipit inline icons
 
 Source: https://github.com/lucide-icons/lucide
 Release: 0.468.0
@@ -11,7 +11,7 @@ Only the shared wrapper is adapted: 20x20 display size, 24x24 viewBox,
 1.6 stroke width, currentColor, rounded caps and joins, and accessibility
 attributes. No runtime icon dependency is used. Unknown names use file-text.
 
-Paperterm key -> Lucide source file (under icons/ at the commit above):
+Pipit key -> Lucide source file (under icons/ at the commit above):
 menu -> panel-left.svg
 search -> search.svg
 command -> command.svg

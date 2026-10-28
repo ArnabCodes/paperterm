@@ -1,0 +1,55 @@
+import { chromium, webkit } from 'playwright';
+import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+const engine = process.env.PIPIT_TEST_ENGINE === 'webkit' ? webkit : chromium;
+const browser = await engine.launch();
+const page = await browser.newPage({viewport:{width:1440,height:1000}, colorScheme:'light'});
+page.setDefaultTimeout(12000);
+const out = 'output/playwright/tutor-speedrun'; mkdirSync(out,{recursive:true});
+const errors=[]; page.on('pageerror',e=>errors.push(e.message));
+const state=()=>page.evaluate(()=>JSON.parse(window.render_game_to_text()));
+const key=k=>page.keyboard.press(k), type=t=>page.keyboard.type(t);
+const done=async id=>{await page.waitForFunction(id=>JSON.parse(window.render_game_to_text()).completed.includes(id),id);console.log('PASS',id);};
+const intro=async(id,title)=>{
+  assert.equal((await state()).mission,id);
+  assert.match(await page.locator('#tutor-level-intro').innerText(),new RegExp(title,'i'));
+  assert.ok(await page.locator(`.flight-scene.level-${id}`).count());
+  assert.equal(await page.locator('#tutor-level-intro').isVisible(),true);
+};
+try {
+ await page.addInitScript(()=>{if (!localStorage.getItem('pipit.tutor.v3')) localStorage.setItem('pipit.tutor.v3',JSON.stringify({started:true,learn:{completed:['move'],skipped:[]}}));});
+ await page.goto(process.env.PIPIT_TUTOR_URL || 'http://127.0.0.1:5198/?tutor=1');
+ await page.locator('#tutor-start').waitFor();await key('Tab');await key('Tab');assert.equal(await page.evaluate(()=>document.activeElement.dataset.tutor),'speedrun');await key('Enter');await page.locator('#tutor-panel').waitFor();
+ assert.equal((await state()).route,'speedrun'); await intro('move','Launch and land');
+ assert.equal(await page.locator('body').evaluate(el=>getComputedStyle(el).cursor),'not-allowed');
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.elementFromPoint(200,200)).cursor),'not-allowed');
+ assert.equal(await page.locator('#viewer-container').evaluate(el=>getComputedStyle(el).pointerEvents),'none');
+ assert.equal(await page.locator('[data-tutor=hint]').evaluate(el=>getComputedStyle(el).pointerEvents),'auto');
+ assert.ok(await page.locator('#reader-toolbar').evaluate(el=>Number(getComputedStyle(el).opacity)) < .5);
+ await page.waitForTimeout(350);await page.screenshot({path:`${out}/level-intro.png`});
+ await page.locator('[data-tutor=hint]').click();assert.equal(await page.locator('.tutor-hint').isVisible(),true);
+ await page.locator('[data-tutor=hint]').click();assert.equal(await page.locator('.tutor-hint').isVisible(),false);
+ await page.waitForTimeout(450);await key('Escape');await page.locator('#tutor-resume').waitFor();
+ const paused=(await state()).elapsedMs;await page.waitForTimeout(450);assert.equal((await state()).elapsedMs,paused,'paused clock is stable');
+ await key('Enter');await page.locator('#tutor-panel').waitFor();await page.waitForTimeout(250);assert.ok((await state()).elapsedMs>paused,'clock resumes');
+ await key('j');await key('k');await done('move');await key('Enter');await intro('navigate','checkpoint');
+ await key('p');await type('2');await key('Enter');await done('navigate');await key('Enter');await intro('search','signal');
+ await key('/');await type('coherence');await done('search');await key('Escape');await key('Enter');await intro('preview','equation');
+ await key('e');await type('2');await page.locator('[role=option]').first().waitFor();await key('Enter');await done('preview');await key('Enter');await intro('pin','observatory');
+ await key('Shift+P');await done('pin');await key('Enter');await intro('trail','return');
+ await key('Enter');await key('g');await key('h');try { await done('trail'); } catch (error) { console.error('Trail diagnostic',await page.evaluate(()=>({state:window.render_game_to_text(),active:document.activeElement.id,page:document.querySelector('#page-current').textContent,top:document.querySelector('#viewer-container').scrollTop,toast:document.querySelector('#toast').textContent}))); throw error; }await key('Enter');await intro('theme','atmosphere');
+ await key('Shift+T');assert.equal(await page.evaluate(()=>document.body.dataset.tutorAppearance),'dark');await page.screenshot({path:`${out}/dark-level.png`});
+ await key('g');await key('d');await done('theme');await key('Enter');await intro('bookmark','beacon');
+ await key('b');await done('bookmark');await key('Enter');await intro('notes','log');
+ await key('Shift+Q');await key('Control+Enter');await type('A timed but careful note.');await done('notes');await key('Escape');await key('Enter');await intro('ruler','spotlight');
+ await key('r');await done('ruler');await key('Enter');await intro('spread','atlas');await key('g');await key('2');await done('spread');
+ assert.equal((await state()).xp,300);assert.ok((await state()).bestMs>0);assert.equal((await state()).skipped.length,0);
+ assert.equal(await page.locator('.tutor-confetti i').count(),28);await page.waitForTimeout(500);await page.screenshot({path:`${out}/celebration.png`});
+ const finished=(await state()).elapsedMs;await page.waitForTimeout(450);assert.equal((await state()).elapsedMs,finished,'clock stops on completion');
+ const stored=JSON.parse(await page.evaluate(()=>localStorage.getItem('pipit.tutor.v3')));assert.equal(stored.speedrunBestMs,finished);assert.deepEqual(stored.learn.completed,['move']);
+ await page.reload();await page.locator('[data-tutor=speedrun]').click();await page.locator('#tutor-panel').waitFor();
+ for(let i=0;i<11;i++){await page.locator('.tutor-levels summary').click();await page.locator('[data-tutor=skip]').click();}
+ assert.equal((await state()).skipped.length,11);assert.equal((await state()).completed.length,0);assert.equal((await state()).bestMs,finished);assert.equal((await state()).eligible,false);assert.match(await page.locator('.tutor-score').innerText(),/UNRANKED/);
+ assert.equal(await page.locator('.tutor-confetti').count(),0,'skips do not trigger completion confetti');
+ assert.deepEqual(errors,[]);console.log('PASS full speedrun, distinct level scenes, mouse policy, pause and best-time persistence, celebration');
+} finally {await browser.close();}
