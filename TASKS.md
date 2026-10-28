@@ -1,10 +1,10 @@
 # Pipit resumption dashboard
 
-Updated: 2026-10-28. Direction: minimal browser-first PDF workspace. Repository stays private. Local source is 0.11.7 with text-line ruler, print-ready PDF handoff, Zotero browser handoff and Overleaf SyncTeX-origin bypass. Cloudflare remains on 0.11.6 until a separate deployment. GitHub push is requested and will include the accumulated unpublished source changes. No store submission is included.
+Updated: 2026-10-28. Direction: minimal browser-first PDF workspace. Repository stays private. GitHub main now contains Pipit 0.11.7 source at `81b6774`, including the text-line ruler, print-ready PDF handoff, Zotero browser handoff and Overleaf SyncTeX-origin bypass. Cloudflare remains on 0.11.6 until a separate deployment. No store submission is included.
 
 | State | Task | Owner | Evidence / next step |
 | --- | --- | --- | --- |
-| In progress | PDF workflow and browser coexistence fixes | Codex / Arnab | 0.11.7 source: ruler uses PDF text baselines; native print tab; Firefox/Zotero original PDF handoff; Overleaf initiator exclusion. Run production build, inspect staged diff, commit and push. |
+| Done | PDF workflow and browser coexistence fixes | Codex / Arnab | 0.11.7 pushed as `81b6774`: ruler follows PDF text lines; native print tab; Firefox/Zotero original PDF handoff; Overleaf PDF initiator exclusion. Production build, package generation and local site build pass. No browser-runtime checks or deployment in this pass. |
 | Published | Lesson detection, advanced route and Feather Relay | Codex / Arnab | 0.11.6: modifier-tolerant history, scroll-position restoration, advanced keyboard course, shuffled five-challenge relay; live Chromium/WebKit, real Vimium, Firefox development extension and 41 public checks pass. Deployment ca2a5f55. Native Safari remains untested. |
 | Published | Home-row history and lesson 6 repair | Codex / Arnab | 0.11.5: g h/g l, Sioyek Backspace aliases, page-relative history across resize, preview restoration and replay, uppercase leader fix, stable tutorial PDF identity. Live Chromium/WebKit and real Vimium, Firefox development extension and 41 public checks pass. Deployment 7d5a5bf1. |
 | Published | Flight School scenes, pointer access and speedrun | Codex / Arnab | 0.11.4: game-panel mouse access; disabled reader; eleven animated scenes, centered intros, confetti and optional pause-aware speedrun with local best and unranked skips. Live Chromium/WebKit full speedruns, Vimium, Firefox development extension and 41 public checks pass. Deployment 4e83d763. |
