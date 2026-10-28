@@ -7,7 +7,7 @@ export function manifestFor(base, target) {
   manifest.host_permissions = ['http://*/*', 'https://*/*'];
   if (target === 'firefox') {
     manifest.permissions.push('webRequest', 'webRequestBlocking');
-    manifest.browser_specific_settings = { gecko: { id: 'pipit@arnabcodes', strict_min_version: '140.0', data_collection_permissions: { required: ['none'] } } };
+    manifest.browser_specific_settings = { gecko: { id: 'paperterm@arnabcodes', strict_min_version: '140.0', data_collection_permissions: { required: ['none'] } } };
   } else if (target === 'safari') {
     manifest.browser_specific_settings = { safari: { strict_min_version: '18.4' } };
   } else throw new Error(`Unknown browser target: ${target}`);

@@ -48,7 +48,7 @@ try {
   await call('POST', '/window/rect', { width: 1440, height: 960 });
   const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
   const addon = await call('POST', '/moz/addon/install', { path: resolve(`artifacts/pipit-${version}-firefox.xpi`), temporary: true });
-  check(addon === 'pipit@arnabcodes', 'Unsigned Firefox development XPI installs temporarily');
+  check(addon === 'paperterm@arnabcodes', 'Unsigned Firefox development XPI installs temporarily with the stable add-on identity');
   await navigate('http://127.0.0.1:4180/paper?first=one&second=two#page=3');
   await wait('document.querySelector("#page-total")?.textContent === "6" && document.querySelector("#engine-status")?.textContent.includes("Ready") && document.querySelector("#loading")?.hidden && document.querySelector("#page-current")?.textContent === "3"', 'PDF interception and initial page restoration');
   const url = await execute('return location.href');

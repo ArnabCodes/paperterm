@@ -17,7 +17,7 @@ for (const [target, suffix] of [['chrome', 'chrome.zip'], ['firefox', 'firefox.x
   assert.ok(WebAssembly.validate(files['core.wasm'])); checks++;
   const manifest = JSON.parse(strFromU8(files['manifest.json']));
   assert.equal(manifest.version, version); checks++;
-  if (target === 'firefox') { assert.equal(manifest.browser_specific_settings.gecko.id, 'pipit@arnabcodes'); checks++; }
+  if (target === 'firefox') { assert.equal(manifest.browser_specific_settings.gecko.id, 'paperterm@arnabcodes'); checks++; }
 }
 for (const name of Object.keys(packages.chrome).filter(name => !['manifest.json', 'background.js', 'INSTALL.txt'].includes(name))) {
   for (const target of ['firefox', 'safari']) assert.deepEqual(packages[target][name], packages.chrome[name], `${target} shared frontend ${name}`);

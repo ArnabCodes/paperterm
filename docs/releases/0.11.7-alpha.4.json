@@ -6,20 +6,20 @@
   "downloads": {
     "chrome": {
       "url": "/downloads/pipit-0.11.7-chrome.zip",
-      "sha256": "dd3d4998caf999fd575b0675c528d2689a4cfc2b60662ced81435c86abb87fa2",
-      "bytes": 4211223,
+      "sha256": "5be02696df55aa20984f5cbb232bb59f1da608b884085cc66c2bdbda0a35f1c0",
+      "bytes": 4211229,
       "status": "unpacked"
     },
     "firefox": {
       "url": "/downloads/pipit-0.11.7-firefox.xpi",
-      "sha256": "32cd8343ff0fe800cc9ea7a83ca78dad8d22daeb595b74d5f6e114aa1de59df8",
-      "bytes": 4211118,
+      "sha256": "7dd4edb9a1aa4b4bf2f1e248019288f14414f05fb232bd7e1cbe824db509cbbc",
+      "bytes": 4211127,
       "status": "unsigned-temporary"
     },
     "safari": {
       "url": "/downloads/pipit-0.11.7-safari-source.zip",
-      "sha256": "3f8a206a4102bd7f1d81c711a54d555155cf1caec20b9530e796f7ceab49c57f",
-      "bytes": 4211195,
+      "sha256": "d7fa8cc9dca1fd2505d53934df61e8637b91906b90c28b67db979de3fddf7ddd",
+      "bytes": 4211201,
       "status": "source-only"
     }
   }
