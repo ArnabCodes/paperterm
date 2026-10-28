@@ -16,7 +16,7 @@ Embedded frames, POST responses, blob URLs, non-PDF MIME responses and browser-i
 
 Top-level PDF navigations initiated by `overleaf.com` are left to Overleaf so its own PDF viewer and SyncTeX controls keep working. Pipit does not implement SyncTeX itself. In Overleaf, keep **Settings → Editor → PDF Viewer → Overleaf** selected; Overleaf documents that its Browser viewer does not support SyncTeX.
 
-In the reader, **Print PDF** (Ctrl+P, or ⌘+P on macOS) opens the PDF in the browser’s built-in viewer, where its native print command can print without first saving a separate file. **Open original PDF for Zotero** (`g Z`) returns a remote PDF to the browser viewer for Zotero Connector. Firefox must be set to **Preview in Firefox** for Connector PDF capture. This handoff adds the documented `pipit-download=1` bypass parameter to that one URL; a publisher’s signed URL may reject the extra parameter, in which case use the publisher page’s Zotero Connector action. Local PDFs have no source URL to hand off.
+In the reader, **Print PDF** (Ctrl+P, or ⌘+P on macOS) opens the PDF in the browser’s built-in viewer, where its native print command can print without first saving a separate file. **Open original PDF for Zotero** (`g Z`) returns a remote PDF to the browser viewer for Zotero Connector. Extension builds preserve the original URL and bypass Pipit through publisher redirects. Firefox must be set to **Preview in Firefox** for Connector PDF capture. The standalone web reader uses `pipit-download=1`; a signed URL may reject the added query parameter, in which case use Zotero Connector from the publisher page. Local PDFs have no source URL to hand off.
 
 ## Build all targets
 

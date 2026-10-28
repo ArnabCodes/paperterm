@@ -10,7 +10,7 @@ export function viewerUrl(runtime, source) {
   return `${viewer}?source=${url.href}`;
 }
 
-export function isPdfResponse(details) {
+export function isPdfResponse(details, extensionId) {
   if (details.type !== 'main_frame' || details.method !== 'GET' || isDownloadBypass(details.url)) return false;
   // Overleaf's separate-tab PDF viewer carries the SyncTeX relationship to
   // the editor. Preserve that native route when the request comes from Overleaf.
@@ -19,6 +19,12 @@ export function isPdfResponse(details) {
       const hostname = new URL(source).hostname.toLowerCase();
       if (hostname === 'overleaf.com' || hostname.endsWith('.overleaf.com')) return false;
     } catch { /* Address-bar requests may have no source document. */ }
+  }
+  for (const source of [details.documentUrl, details.originUrl]) {
+    try {
+      const url = new URL(source);
+      if (url.protocol === 'moz-extension:' && url.hostname === extensionId) return false;
+    } catch { /* The request may have come from browser chrome. */ }
   }
   if (!/^https?:/i.test(details.url) || details.statusCode < 200 || details.statusCode >= 300) return false;
   return details.responseHeaders?.some(header => header.name.toLowerCase() === 'content-type' && /^application\/pdf(?:\s*;|\s*$)/i.test(header.value || '')) || false;

@@ -2,7 +2,7 @@
 
 ## 0.11.7 PDF workflow fixes — 28 October 2026
 
-Pushed to the private GitHub repository as `81b6774`; not deployed. The reading ruler follows visible PDF text lines and scrolls one line at viewport edges. Ctrl+P / ⌘+P opens PDF.js document bytes in the browser’s native PDF viewer for printing without first saving a copy. `g Z` opens a remote PDF at its original URL with the one-time `pipit-download=1` bypass for Firefox/Zotero Connector. Chromium and Firefox leave Overleaf-originated top-level PDF tabs untouched so Overleaf retains its own SyncTeX viewer. Pipit itself does not implement SyncTeX. `npm run build`, `npm run package`, and `npm run build:site` completed; browser behavior was not exercised in this pass. No website deployment or store submission is included in this source update.
+Pushed to the private GitHub repository as `81b6774`; a follow-up to preserve Zotero handoffs through publisher redirects is also in GitHub main. Not deployed. The reading ruler follows visible PDF text lines and scrolls one line at viewport edges. Ctrl+P / ⌘+P opens PDF.js document bytes in the browser’s native PDF viewer for printing without first saving a copy. `g Z` opens a remote PDF in the browser for Firefox/Zotero Connector while preserving the original URL through redirects. Chromium and Firefox leave Overleaf-originated top-level PDF tabs untouched so Overleaf retains its own SyncTeX viewer. Pipit itself does not implement SyncTeX. Production build, packages and local site build completed; browser behavior was not exercised in this pass. No website deployment or store submission is included in this source update.
 
 ## 0.11.6 Flight School — 27 October 2026
 

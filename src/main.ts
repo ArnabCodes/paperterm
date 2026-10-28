@@ -761,10 +761,11 @@ async function openPrintPdf() {
 function openOriginalPdfForZotero() {
   if (!originalPdfUrl) { toast('This PDF was opened from a local file; there is no browser URL to hand off.'); return; }
   const url = new URL(originalPdfUrl);
-  // This one-navigation bypass lets Firefox's native PDF viewer and Zotero
-  // Connector see the publisher response without disabling Pipit globally.
-  url.searchParams.set('pipit-download', '1');
-  window.open(url.href, '_blank', 'noopener,noreferrer');
+  // Extension-originated PDF navigations stay in the browser viewer across
+  // publisher redirects, preserving signed URLs for Firefox/Zotero Connector.
+  // The standalone web reader has no extension origin, so use its explicit URL bypass.
+  if (!isExtensionPage()) url.searchParams.set('pipit-download', '1');
+  window.open(url.href, '_blank', 'noopener');
 }
 
 function textLineCenters() {

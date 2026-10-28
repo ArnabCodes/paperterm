@@ -2,7 +2,7 @@ import { installContextMenu, isPdfResponse, isDownloadBypass, viewerUrl } from '
 
 const api = globalThis.browser;
 api.webRequest.onHeadersReceived.addListener(details => {
-  if (isPdfResponse(details)) return { redirectUrl: viewerUrl(api.runtime, details.url) };
+  if (isPdfResponse(details, api.runtime.id)) return { redirectUrl: viewerUrl(api.runtime, details.url) };
   return {};
 }, { urls: ['http://*/*', 'https://*/*'], types: ['main_frame'] }, ['blocking', 'responseHeaders']);
 
