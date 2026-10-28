@@ -1,6 +1,6 @@
 # Pipit
 
-**Pipit 0.11.7 source pushed to private GitHub** (`81b6774`): `[` / `]` now follow actual PDF text lines; Ctrl+P / ⌘+P opens a print-ready PDF in the browser viewer; `g Z` hands a remote PDF back to the browser for Zotero; Overleaf-initiated PDF tabs bypass Pipit so Overleaf’s SyncTeX viewer remains in control. It has not been deployed; the live site remains on 0.11.6.
+**Pipit 0.11.7 source pushed to private GitHub** (`81b6774`, with redirect-safe Zotero handoff in `3bab9e5`): `[` / `]` now follow actual PDF text lines; Ctrl+P / ⌘+P opens a print-ready PDF in the browser viewer; `g Z` hands a remote PDF back to the browser for Zotero; Overleaf-initiated PDF tabs bypass Pipit so Overleaf’s SyncTeX viewer remains in control. It has not been deployed; the live site remains on 0.11.6.
 
 A quiet PDF workspace for following ideas without losing your place. A minimal web interface, Sioyek-inspired keyboard navigation and reference previews, and a Rust/WebAssembly lookup engine.
 
